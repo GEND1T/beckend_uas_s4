@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Brand {
+  id        Int       @id @default(autoincrement()) @map("id_brand")
+  name      String    @unique @db.VarChar(20)
+  createdAt DateTime  @default(now()) @map("created_at")
+  products  Product[]
+  @@map("brands")
+}
+
+model Store {
+  id        Int       @id @default(autoincrement()) @map("id_store")
+  name      String    @db.VarChar(150)
+  address   String    @db.VarChar(250)
+  city      String    @db.VarChar(50)
+  phone     String    @unique @db.VarChar(12)
+  isActive  Int       @db.TinyInt @map("is_active") 
+  latitude  Decimal?  @db.Decimal(10, 7)
+  longitude Decimal?  @db.Decimal(10, 7)
+  createdAt DateTime  @default(now()) @map("created_at")
+  users         User[]
+  productStores ProductStore[]
+  @@map("stores")
+}
+
+model Customer {
+  id        Int       @id @default(autoincrement()) @map("id_customer")
+  name      String    @db.VarChar(50)
+  email     String    @unique @db.VarChar(100)
+  password  String    @db.VarChar(255)
+  latitude  Decimal?  @db.Decimal(10, 7)
+  longitude Decimal?  @db.Decimal(10, 7)
+  createdAt DateTime  @default(now()) @map("created_at")
+  recommendationRequests RecommendationRequest[]
+  @@map("customers")
+}
+
+model User {
+  id        Int       @id @default(autoincrement()) @map("id_user")
+  storeId   Int       @map("stores_id_store")
+  name      String    @db.VarChar(50)
+  email     String    @unique @db.VarChar(100)
+  password  String    @db.VarChar(255)
+  role      String    @db.VarChar(10)
+  createdAt DateTime  @default(now()) @map("created_at")
+  store     Store     @relation(fields: [storeId], references: [id])
+  @@map("users")
+}
+
+model Product {
+  id          Int       @id @default(autoincrement()) @map("id_product")
+  brandId     Int       @map("brands_id_brand")
+  modelName   String    @map("model_name") @db.VarChar(200)
+  screenSize  Decimal?  @map("screen_size") @db.Decimal(4, 1)
+  processor   String    @db.VarChar(100)
+  ram         String    @db.VarChar(20)
+  storage     String    @db.VarChar(10)
+  battery     String?   @db.VarChar(50)
+  weight      String    @db.VarChar(6)
+  releaseYear String    @map("release_year") @db.VarChar(4)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  brand           Brand             @relation(fields: [brandId], references: [id])
+  productCriteria ProductCriteria[]
+  productStores   ProductStore[]
+  @@map("products")
+}
+
+model ProductStore {
+  id          Int       @id @default(autoincrement()) @map("id_product_store")
+  productId   Int       @map("products_id_product")
+  storeId     Int       @map("stores_id_store")
+  price       Int       @db.Int 
+  stock       Int
+  isAvailable Int       @map("is_available") @db.TinyInt
+  updatedAt   DateTime  @updatedAt @map("update_at")
+  product     Product   @relation(fields: [productId], references: [id])
+  store       Store     @relation(fields: [storeId], references: [id])
+  recommendationResults RecommendationResult[]
+  @@map("product_store")
+}
+
+model Criteria {
+  id        Int       @id @default(autoincrement()) @map("id_criteria")
+  code      String    @db.VarChar(2)
+  name      String    @db.VarChar(20)
+  type      String    @db.VarChar(10) // 'benefit' or 'cost'
+  createdAt DateTime  @default(now()) @map("created_at")
+  subCriteria SubCriteria[]
+  @@map("criteria")
+}
+
+model SubCriteria {
+  id           Int       @id @default(autoincrement()) @map("id_sub_criteria")
+  criteriaId   Int       @map("criteria_id_criteria")
+  description  String    @db.VarChar(100)
+  valueNumeric Int       @map("value_numeric") @db.Int
+  createdAt    DateTime  @default(now()) @map("created_at")
+  criteria             Criteria               @relation(fields: [criteriaId], references: [id])
+  productCriteria      ProductCriteria[]
+  recommendationWeight RecommendationWeight[]
+  @@map("sub_criteria")
+}
+
+model ProductCriteria {
+  id            Int @id @default(autoincrement()) @map("id_product_criteria")
+  productId     Int @map("products_id_product")
+  subCriteriaId Int @map("sub_criteria_id_sub_criteria")
+  product     Product     @relation(fields: [productId], references: [id])
+  subCriteria SubCriteria @relation(fields: [subCriteriaId], references: [id])
+  @@map("product_criteria")
+}
+
+model RecommendationRequest {
+  id         Int      @id @default(autoincrement()) @map("id_recommendation_request")
+  customerId Int      @map("customers_id_customer")
+  kebutuhan  String   @db.VarChar(100)
+  budgetMin  Int      @map("budget_min") @db.Int
+  budgetMax  Int      @map("budget_max") @db.Int
+  status     String   @db.VarChar(9)
+  createdAt  DateTime @default(now()) @map("created_at")
+  customer              Customer               @relation(fields: [customerId], references: [id])
+  recommendationWeights RecommendationWeight[]
+  recommendationResults RecommendationResult[]
+  @@map("recommendation_requests")
+}
+
+model RecommendationWeight {
+  id            Int     @id @default(autoincrement()) @map("id_recommendation_weight")
+  requestId     Int     @map("recommendation_requests_id_recommendation_request")
+  subCriteriaId Int     @map("sub_criteria_id_sub_criteria")
+  weight        Decimal @db.Decimal(5, 4)
+  request     RecommendationRequest @relation(fields: [requestId], references: [id])
+  subCriteria SubCriteria           @relation(fields: [subCriteriaId], references: [id])
+  @@map("recommendation_weight")
+}
+
+model RecommendationResult {
+  id             Int      @id @default(autoincrement()) @map("id_recommendation_result")
+  requestId      Int      @map("recommendation_requests_id_recommendation_request")
+  productStoreId Int      @map("product_store_id_product_store")
+  methodUsed     String   @map("method_used") @db.VarChar(6)
+  score          Decimal  @db.Decimal(10, 6)
+  ranking        Int      @map("ranking")
+  createdAt      DateTime @default(now()) @map("created_at")
+  request      RecommendationRequest @relation(fields: [requestId], references: [id])
+  productStore ProductStore          @relation(fields: [productStoreId], references: [id])
+  @@map("recommendation_result")
+}
