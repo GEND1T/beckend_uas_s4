@@ -10,7 +10,7 @@ export class SpkController {
         return res.status(401).json({ success: false, message: 'Authentication context missing.' });
       }
 
-      const { kebutuhan, budgetMin, budgetMax, weights } = req.body;
+      const { kebutuhan, budgetMin, budgetMax, userLat, userLng, weights } = req.body;
       if (!kebutuhan || budgetMin === undefined || budgetMax === undefined || !Array.isArray(weights) || weights.length === 0) {
         return res.status(400).json({
           success: false,
@@ -28,6 +28,8 @@ export class SpkController {
         kebutuhan,
         budgetMin: parseInt(budgetMin),
         budgetMax: parseInt(budgetMax),
+        userLat: userLat !== undefined && userLat !== null ? parseFloat(userLat) : undefined,
+        userLng: userLng !== undefined && userLng !== null ? parseFloat(userLng) : undefined,
         weights: parsedWeights
       });
 

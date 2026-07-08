@@ -8,6 +8,8 @@ export interface CreateSpkRequestInput {
   kebutuhan: string;
   budgetMin: number;
   budgetMax: number;
+  userLat?: number | null;
+  userLng?: number | null;
   weights: {
     subCriteriaId: number;
     weight: number;
@@ -20,14 +22,14 @@ export class SpkRequestService {
     if (!request) return request;
 
     const customer = request.customer;
-    const userLat = customer?.latitude;
-    const userLng = customer?.longitude;
+    const userLat = request.userLat ?? customer?.latitude;
+    const userLng = request.userLng ?? customer?.longitude;
 
     if (request.recommendationResults) {
       request.recommendationResults = request.recommendationResults.map((result: any) => {
         let distanceInKm: number | null = null;
 
-        // Fallback: only calculate if both customer and store coordinates are fully present
+        // Fallback: only calculate if both coordinates are fully present
         if (
           userLat !== null &&
           userLat !== undefined &&
@@ -74,6 +76,21 @@ export class SpkRequestService {
       }
     }
 
+    // Fetch customer's coordinates from profile if not passed explicitly in payload
+    let lat = input.userLat;
+    let lng = input.userLng;
+
+    if (lat === undefined || lng === undefined || lat === null || lng === null) {
+      const customer = await prisma.customer.findUnique({
+        where: { id: input.customerId },
+        select: { latitude: true, longitude: true }
+      });
+      if (customer) {
+        lat = lat ?? (customer.latitude ? Number(customer.latitude) : null);
+        lng = lng ?? (customer.longitude ? Number(customer.longitude) : null);
+      }
+    }
+
     // 2. Perform request and weights creation in transaction
     const newRequest = await prisma.$transaction(async (tx) => {
       const req = await tx.recommendationRequest.create({
@@ -82,7 +99,9 @@ export class SpkRequestService {
           kebutuhan: input.kebutuhan,
           budgetMin: input.budgetMin,
           budgetMax: input.budgetMax,
-          status: 'PENDING'
+          status: 'PENDING',
+          userLat: lat,
+          userLng: lng
         }
       });
 
