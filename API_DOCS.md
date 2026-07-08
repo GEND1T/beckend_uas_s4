@@ -1064,6 +1064,8 @@ Endpoints for register, catalog browsing, profile editing, and SPK recommendatio
     "kebutuhan": "Gaming & Coding",
     "budgetMin": 10000000,
     "budgetMax": 20000000,
+    "userLat": -6.1754,
+    "userLng": 106.8272,
     "weights": [
       { "subCriteriaId": 1, "weight": 0.40 },
       { "subCriteriaId": 5, "weight": 0.35 },
@@ -1084,6 +1086,8 @@ Endpoints for register, catalog browsing, profile editing, and SPK recommendatio
       "budgetMin": 10000000,
       "budgetMax": 20000000,
       "status": "SUCCESS",
+      "userLat": "-6.17540000",
+      "userLng": "106.82720000",
       "createdAt": "2026-07-07T02:45:00.000Z",
       "recommendationWeights": [
         {

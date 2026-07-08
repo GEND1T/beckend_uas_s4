@@ -124,6 +124,8 @@ model RecommendationRequest {
   budgetMin  Int      @map("budget_min") @db.Int
   budgetMax  Int      @map("budget_max") @db.Int
   status     String   @db.VarChar(9)
+  userLat    Decimal? @map("user_lat") @db.Decimal(10, 8)
+  userLng    Decimal? @map("user_lng") @db.Decimal(11, 8)
   createdAt  DateTime @default(now()) @map("created_at")
   customer              Customer               @relation(fields: [customerId], references: [id])
   recommendationWeights RecommendationWeight[]
