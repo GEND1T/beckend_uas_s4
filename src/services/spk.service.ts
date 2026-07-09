@@ -1,267 +1,136 @@
 import { prisma } from '../config/db';
-import { recommendationRequestRepository } from '../repositories/recommendationRequest.repository';
-import { recommendationResultRepository } from '../repositories/recommendationResult.repository';
-import { criteriaRepository } from '../repositories/criteria.repository';
+
+export interface CreateSpkRequestInput {
+  customerId: number;
+  kebutuhan: string;
+  budgetMin: number;
+  budgetMax: number;
+  weights: {
+    criteriaId: number;
+    weight: number;
+  }[];
+}
 
 export class SpkService {
-  async calculateRecommendation(requestId: number): Promise<void> {
-    // 1. Fetch the request
-    const request = await recommendationRequestRepository.findById(requestId);
-    if (!request) {
-      throw new Error(`Recommendation request with ID ${requestId} not found.`);
-    }
-
-    const { budgetMin, budgetMax, recommendationWeights } = request;
-
-    // 2. Fetch all criteria
-    const allCriteria = await criteriaRepository.findAll();
-    if (allCriteria.length === 0) {
-      throw new Error("No criteria configured in the system.");
-    }
-
-    // 3. Fetch alternatives matching budget constraints
-    const alternatives = await prisma.productStore.findMany({
-      where: {
-        price: {
-          gte: budgetMin,
-          lte: budgetMax
-        },
-        isAvailable: 1,
-        store: {
-          isActive: 1
+  async calculateRecommendationInTransaction(
+    input: CreateSpkRequestInput,
+    lat: number | null | undefined,
+    lng: number | null | undefined
+  ): Promise<any> {
+    return prisma.$transaction(async (tx) => {
+      // STEP A: Insert recommendation request
+      const req = await tx.recommendationRequest.create({
+        data: {
+          customerId: input.customerId,
+          kebutuhan: input.kebutuhan,
+          budgetMin: input.budgetMin,
+          budgetMax: input.budgetMax,
+          status: 'PENDING',
+          userLat: lat,
+          userLng: lng
         }
-      },
-      include: {
-        product: {
-          include: {
-            productCriteria: {
-              include: {
-                subCriteria: true
-              }
-            }
-          }
-        },
-        store: true
-      }
-    });
+      });
 
-    // If no alternatives are found, we clear old results and mark status as SUCCESS or FAILED with no results.
-    if (alternatives.length === 0) {
-      await recommendationResultRepository.deleteByRequestId(requestId);
-      await recommendationRequestRepository.update(requestId, { status: 'SUCCESS' });
-      return;
-    }
+      const req_id = req.id;
 
-    // 4. Map criteria weights and normalize them so they sum to 1
-    const weightMap = new Map<number, number>();
-    for (const rw of recommendationWeights) {
-      const criteriaId = rw.subCriteria.criteriaId;
-      weightMap.set(criteriaId, Number(rw.weight));
-    }
+      // STEP B: Insert user weights mapped directly to criteriaId (1 to 5)
+      const w1 = input.weights.find(w => w.criteriaId === 1)?.weight ?? 0;
+      const w2 = input.weights.find(w => w.criteriaId === 2)?.weight ?? 0;
+      const w3 = input.weights.find(w => w.criteriaId === 3)?.weight ?? 0;
+      const w4 = input.weights.find(w => w.criteriaId === 4)?.weight ?? 0;
+      const w5 = input.weights.find(w => w.criteriaId === 5)?.weight ?? 0;
 
-    const normalizedWeights = new Map<number, number>();
-    let totalWeight = 0;
-    for (const crit of allCriteria) {
-      const w = weightMap.get(crit.id) || 0;
-      totalWeight += w;
-    }
+      const weightData = [
+        { requestId: req_id, criteriaId: 1, weight: w1 },
+        { requestId: req_id, criteriaId: 2, weight: w2 },
+        { requestId: req_id, criteriaId: 3, weight: w3 },
+        { requestId: req_id, criteriaId: 4, weight: w4 },
+        { requestId: req_id, criteriaId: 5, weight: w5 }
+      ];
 
-    if (totalWeight > 0) {
-      for (const crit of allCriteria) {
-        const w = weightMap.get(crit.id) || 0;
-        normalizedWeights.set(crit.id, w / totalWeight);
-      }
-    } else {
-      const equalWeight = 1 / allCriteria.length;
-      for (const crit of allCriteria) {
-        normalizedWeights.set(crit.id, equalWeight);
-      }
-    }
+      await tx.recommendationWeight.createMany({
+        data: weightData
+      });
 
-    // 5. Construct Decision Matrix
-    const decisionMatrix = alternatives.map(alt => {
-      const criteriaValues = new Map<number, number>();
+      // STEP C: Execute SPK Calculations via Raw SQL (CTE)
       
-      // Default to 0 if criteria not set on product
-      for (const crit of allCriteria) {
-        criteriaValues.set(crit.id, 0);
-      }
+      // SQL FOR SAW
+      const sawQuery = `
+        INSERT INTO recommendation_result (recommendation_requests_id_recommendation_request, product_store_id_product_store, method_used, score, ranking)
+        WITH saw_calc AS (
+            SELECT dm.product_id, dm.store_id,
+                SUM(saw.normalized_value * CASE saw.criteria_id WHEN 1 THEN ? WHEN 2 THEN ? WHEN 3 THEN ? WHEN 4 THEN ? WHEN 5 THEN ? ELSE 0 END) AS final_score
+            FROM v_saw_normalized_matrix saw
+            JOIN v_decision_matrix dm ON saw.product_id = dm.product_id AND saw.store_id = dm.store_id AND saw.criteria_id = dm.criteria_id
+            WHERE dm.price BETWEEN ? AND ?
+            GROUP BY dm.product_id, dm.store_id
+        )
+        SELECT ?, ps.id_product_store, 'SAW', c.final_score, ROW_NUMBER() OVER(ORDER BY c.final_score DESC) AS ranking
+        FROM saw_calc c JOIN product_store ps ON c.product_id = ps.products_id_product AND c.store_id = ps.stores_id_store
+        ORDER BY final_score DESC LIMIT 10;
+      `;
 
-      // Override with actual values
-      for (const pc of alt.product.productCriteria) {
-        criteriaValues.set(pc.subCriteria.criteriaId, pc.subCriteria.valueNumeric);
-      }
+      // SQL FOR WP
+      const wpQuery = `
+        INSERT INTO recommendation_result (recommendation_requests_id_recommendation_request, product_store_id_product_store, method_used, score, ranking)
+        WITH wp_step1 AS (
+            SELECT product_id, store_id, raw_value,
+                CASE WHEN criteria_type = 'cost' THEN CASE criteria_id WHEN 1 THEN -? WHEN 2 THEN -? WHEN 3 THEN -? WHEN 4 THEN -? WHEN 5 THEN -? ELSE 0 END
+                ELSE CASE criteria_id WHEN 1 THEN ? WHEN 2 THEN ? WHEN 3 THEN ? WHEN 4 THEN ? WHEN 5 THEN ? ELSE 0 END END AS weight_power
+            FROM v_decision_matrix WHERE price BETWEEN ? AND ?
+        ),
+        wp_calc AS (
+            SELECT product_id, store_id, EXP(SUM(LOG(POW(raw_value, weight_power)))) AS final_score
+            FROM wp_step1 GROUP BY product_id, store_id
+        )
+        SELECT ?, ps.id_product_store, 'WP', c.final_score, ROW_NUMBER() OVER(ORDER BY c.final_score DESC) AS ranking
+        FROM wp_calc c JOIN product_store ps ON c.product_id = ps.products_id_product AND c.store_id = ps.stores_id_store
+        ORDER BY final_score DESC LIMIT 10;
+      `;
 
-      return {
-        productStoreId: alt.id,
-        values: criteriaValues
-      };
-    });
+      // SQL FOR TOPSIS
+      const topsisQuery = `
+        INSERT INTO recommendation_result (recommendation_requests_id_recommendation_request, product_store_id_product_store, method_used, score, ranking)
+        WITH t_step1 AS (
+            SELECT tn.product_id, tn.store_id, tn.criteria_id, tn.criteria_type,
+                tn.normalized_value * CASE tn.criteria_id WHEN 1 THEN ? WHEN 2 THEN ? WHEN 3 THEN ? WHEN 4 THEN ? WHEN 5 THEN ? ELSE 0 END AS weighted_value
+            FROM v_topsis_normalisasi tn JOIN v_decision_matrix dm ON tn.product_id = dm.product_id AND tn.store_id = dm.store_id AND tn.criteria_id = dm.criteria_id
+            WHERE dm.price BETWEEN ? AND ?
+        ),
+        t_ideal AS (
+            SELECT criteria_id,
+                CASE WHEN criteria_type = 'benefit' THEN MAX(weighted_value) ELSE MIN(weighted_value) END AS ideal_pos,
+                CASE WHEN criteria_type = 'benefit' THEN MIN(weighted_value) ELSE MAX(weighted_value) END AS ideal_neg
+            FROM t_step1 GROUP BY criteria_id, criteria_type
+        ),
+        t_dist AS (
+            SELECT s1.product_id, s1.store_id,
+                SQRT(SUM(POW(s1.weighted_value - idl.ideal_pos, 2))) AS d_pos,
+                SQRT(SUM(POW(s1.weighted_value - idl.ideal_neg, 2))) AS d_neg
+            FROM t_step1 s1 JOIN t_ideal idl ON s1.criteria_id = idl.criteria_id GROUP BY s1.product_id, s1.store_id
+        ),
+        t_calc AS (
+            SELECT product_id, store_id, (d_neg / (d_pos + d_neg)) AS final_score
+            FROM t_dist WHERE (d_pos + d_neg) > 0
+        )
+        SELECT ?, ps.id_product_store, 'TOPSIS', c.final_score, ROW_NUMBER() OVER(ORDER BY c.final_score DESC) AS ranking
+        FROM t_calc c JOIN product_store ps ON c.product_id = ps.products_id_product AND c.store_id = ps.stores_id_store
+        ORDER BY final_score DESC LIMIT 10;
+      `;
 
-    // Min and Max values per criteria (needed for SAW and checking)
-    const minValues = new Map<number, number>();
-    const maxValues = new Map<number, number>();
-    for (const crit of allCriteria) {
-      const values = decisionMatrix.map(row => row.values.get(crit.id) || 0);
-      minValues.set(crit.id, Math.min(...values));
-      maxValues.set(crit.id, Math.max(...values));
-    }
+      // Execute 3 INSERT queries using tx.$executeRawUnsafe
+      await tx.$executeRawUnsafe(sawQuery, w1, w2, w3, w4, w5, input.budgetMin, input.budgetMax, req_id);
+      await tx.$executeRawUnsafe(wpQuery, w1, w2, w3, w4, w5, w1, w2, w3, w4, w5, input.budgetMin, input.budgetMax, req_id);
+      await tx.$executeRawUnsafe(topsisQuery, w1, w2, w3, w4, w5, input.budgetMin, input.budgetMax, req_id);
 
-    // --- METHOD 1: SAW (Simple Additive Weighting) ---
-    const sawRaw = decisionMatrix.map(row => {
-      let score = 0;
-      for (const crit of allCriteria) {
-        const x = row.values.get(crit.id) || 0;
-        const w = normalizedWeights.get(crit.id) || 0;
-        const max = maxValues.get(crit.id) || 0;
-        const min = minValues.get(crit.id) || 0;
-
-        let r = 0;
-        if (crit.type.toLowerCase() === 'benefit') {
-          r = max > 0 ? x / max : 0;
-        } else { // cost
-          r = x > 0 ? min / x : 0;
-        }
-        score += w * r;
-      }
-      return { productStoreId: row.productStoreId, score };
-    });
-
-    // --- METHOD 2: WP (Weighted Product) ---
-    const wpRawS = decisionMatrix.map(row => {
-      let s = 1;
-      for (const crit of allCriteria) {
-        const x = row.values.get(crit.id) || 0;
-        const w = normalizedWeights.get(crit.id) || 0;
-        const isBenefit = crit.type.toLowerCase() === 'benefit';
-
-        const exponent = isBenefit ? w : -w;
-        const base = x > 0 ? x : 1; // avoid 0 base to negative exponents
-        s *= Math.pow(base, exponent);
-      }
-      return { productStoreId: row.productStoreId, sValue: s };
-    });
-
-    const sumSValue = wpRawS.reduce((sum, item) => sum + item.sValue, 0);
-    const wpRaw = wpRawS.map(item => ({
-      productStoreId: item.productStoreId,
-      score: sumSValue > 0 ? item.sValue / sumSValue : 0
-    }));
-
-    // --- METHOD 3: TOPSIS ---
-    // Vector normalization denominator: sqrt(sum(x_ij^2))
-    const sumOfSquares = new Map<number, number>();
-    for (const crit of allCriteria) {
-      const sumSq = decisionMatrix.reduce((sum, row) => {
-        const val = row.values.get(crit.id) || 0;
-        return sum + (val * val);
-      }, 0);
-      sumOfSquares.set(crit.id, sumSq);
-    }
-
-    const weightedNormalized = decisionMatrix.map(row => {
-      const vValues = new Map<number, number>();
-      for (const crit of allCriteria) {
-        const x = row.values.get(crit.id) || 0;
-        const w = normalizedWeights.get(crit.id) || 0;
-        const sumSq = sumOfSquares.get(crit.id) || 0;
-        const r = sumSq > 0 ? x / Math.sqrt(sumSq) : 0;
-        vValues.set(crit.id, w * r);
-      }
-      return { productStoreId: row.productStoreId, vValues };
-    });
-
-    const idealPositive = new Map<number, number>();
-    const idealNegative = new Map<number, number>();
-    for (const crit of allCriteria) {
-      const vVals = weightedNormalized.map(row => row.vValues.get(crit.id) || 0);
-      const maxV = Math.max(...vVals);
-      const minV = Math.min(...vVals);
-
-      if (crit.type.toLowerCase() === 'benefit') {
-        idealPositive.set(crit.id, maxV);
-        idealNegative.set(crit.id, minV);
-      } else { // cost
-        idealPositive.set(crit.id, minV);
-        idealNegative.set(crit.id, maxV);
-      }
-    }
-
-    const topsisRaw = weightedNormalized.map(row => {
-      let sumSqPos = 0;
-      let sumSqNeg = 0;
-      for (const crit of allCriteria) {
-        const v = row.vValues.get(crit.id) || 0;
-        const posIdeal = idealPositive.get(crit.id) || 0;
-        const negIdeal = idealNegative.get(crit.id) || 0;
-
-        sumSqPos += Math.pow(v - posIdeal, 2);
-        sumSqNeg += Math.pow(v - negIdeal, 2);
-      }
-      const dPos = Math.sqrt(sumSqPos);
-      const dNeg = Math.sqrt(sumSqNeg);
-      const score = (dPos + dNeg) > 0 ? dNeg / (dPos + dNeg) : 0;
-      return { productStoreId: row.productStoreId, score };
-    });
-
-    // --- Reranking & Persisting ---
-    const rank = (results: { productStoreId: number; score: number }[]) => {
-      const sorted = [...results].sort((a, b) => b.score - a.score);
-      return results.map(item => {
-        const ranking = sorted.findIndex(s => s.productStoreId === item.productStoreId) + 1;
-        return {
-          productStoreId: item.productStoreId,
-          score: item.score,
-          ranking
-        };
+      // Update status to SUCCESS
+      const updatedReq = await tx.recommendationRequest.update({
+        where: { id: req_id },
+        data: { status: 'SUCCESS' }
       });
-    };
 
-    const sawRanked = rank(sawRaw);
-    const wpRanked = rank(wpRaw);
-    const topsisRanked = rank(topsisRaw);
-
-    // Prepare insert list
-    const resultsToInsert: any[] = [];
-
-    sawRanked.forEach(item => {
-      resultsToInsert.push({
-        requestId,
-        productStoreId: item.productStoreId,
-        methodUsed: 'SAW',
-        score: item.score,
-        ranking: item.ranking
-      });
+      return updatedReq;
     });
-
-    wpRanked.forEach(item => {
-      resultsToInsert.push({
-        requestId,
-        productStoreId: item.productStoreId,
-        methodUsed: 'WP',
-        score: item.score,
-        ranking: item.ranking
-      });
-    });
-
-    topsisRanked.forEach(item => {
-      resultsToInsert.push({
-        requestId,
-        productStoreId: item.productStoreId,
-        methodUsed: 'TOPSIS',
-        score: item.score,
-        ranking: item.ranking
-      });
-    });
-
-    // Delete existing results first (to keep idempotency)
-    await recommendationResultRepository.deleteByRequestId(requestId);
-
-    // Bulk save
-    await recommendationResultRepository.createMany(resultsToInsert);
-
-    // Update status
-    await recommendationRequestRepository.update(requestId, { status: 'SUCCESS' });
   }
 }
 

@@ -8,9 +8,7 @@ export class RecommendationRequestRepository {
         customer: true,
         recommendationWeights: {
           include: {
-            subCriteria: {
-              include: { criteria: true }
-            }
+            criteria: true
           }
         },
         recommendationResults: {
@@ -36,9 +34,7 @@ export class RecommendationRequestRepository {
         customer: true,
         recommendationWeights: {
           include: {
-            subCriteria: {
-              include: { criteria: true }
-            }
+            criteria: true
           }
         },
         recommendationResults: {
@@ -63,9 +59,7 @@ export class RecommendationRequestRepository {
         customer: true,
         recommendationWeights: {
           include: {
-            subCriteria: {
-              include: { criteria: true }
-            }
+            criteria: true
           }
         },
         recommendationResults: {

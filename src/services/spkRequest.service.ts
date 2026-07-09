@@ -11,7 +11,7 @@ export interface CreateSpkRequestInput {
   userLat?: number | null;
   userLng?: number | null;
   weights: {
-    subCriteriaId: number;
+    criteriaId: number;
     weight: number;
   }[];
 }
@@ -66,13 +66,13 @@ export class SpkRequestService {
   }
 
   async createRequest(input: CreateSpkRequestInput) {
-    // 1. Validate subCriteria exist
+    // 1. Validate criteria exist
     for (const w of input.weights) {
-      const sc = await prisma.subCriteria.findUnique({
-        where: { id: w.subCriteriaId }
+      const c = await prisma.criteria.findUnique({
+        where: { id: w.criteriaId }
       });
-      if (!sc) {
-        throw new Error(`SubCriteria with ID ${w.subCriteriaId} not found.`);
+      if (!c) {
+        throw new Error(`Criteria with ID ${w.criteriaId} not found.`);
       }
     }
 
@@ -91,43 +91,25 @@ export class SpkRequestService {
       }
     }
 
-    // 2. Perform request and weights creation in transaction
-    const newRequest = await prisma.$transaction(async (tx) => {
-      const req = await tx.recommendationRequest.create({
-        data: {
+    // 2. Perform all insertion and CTE calculation inside a single database transaction in spkService
+    let newRequest;
+    try {
+      newRequest = await spkService.calculateRecommendationInTransaction(
+        {
           customerId: input.customerId,
           kebutuhan: input.kebutuhan,
           budgetMin: input.budgetMin,
           budgetMax: input.budgetMax,
-          status: 'PENDING',
-          userLat: lat,
-          userLng: lng
-        }
-      });
-
-      if (input.weights.length > 0) {
-        await tx.recommendationWeight.createMany({
-          data: input.weights.map(w => ({
-            requestId: req.id,
-            subCriteriaId: w.subCriteriaId,
-            weight: w.weight
-          }))
-        });
-      }
-
-      return req;
-    });
-
-    try {
-      // 3. Trigger SPK Calculation
-      await spkService.calculateRecommendation(newRequest.id);
+          weights: input.weights
+        },
+        lat,
+        lng
+      );
     } catch (error: any) {
-      // Update status to FAILED if error occurs
-      await recommendationRequestRepository.update(newRequest.id, { status: 'FAILED' });
-      throw new Error(`SPK Engine error: ${error.message}`);
+      throw new Error(`SPK Engine transaction error: ${error.message}`);
     }
 
-    // 4. Return complete request with calculations
+    // 3. Return complete request with calculations
     const result = await recommendationRequestRepository.findById(newRequest.id);
     return this.attachDistanceToRequest(result);
   }

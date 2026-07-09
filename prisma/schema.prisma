@@ -12,146 +12,170 @@ model Brand {
   name      String    @unique @db.VarChar(20)
   createdAt DateTime  @default(now()) @map("created_at")
   products  Product[]
+
   @@map("brands")
 }
 
 model Store {
-  id        Int       @id @default(autoincrement()) @map("id_store")
-  name      String    @db.VarChar(150)
-  address   String    @db.VarChar(250)
-  city      String    @db.VarChar(50)
-  phone     String    @unique @db.VarChar(12)
-  isActive  Int       @db.TinyInt @map("is_active") 
-  latitude  Decimal?  @db.Decimal(10, 7)
-  longitude Decimal?  @db.Decimal(10, 7)
-  createdAt DateTime  @default(now()) @map("created_at")
-  users         User[]
+  id            Int            @id @default(autoincrement()) @map("id_store")
+  name          String         @db.VarChar(150)
+  address       String         @db.VarChar(250)
+  city          String         @db.VarChar(50)
+  latitude      Decimal?       @db.Decimal(10, 7)
+  longitude     Decimal?       @db.Decimal(10, 7)
+  phone         String         @unique @db.VarChar(12)
+  isActive      Int            @map("is_active") @db.TinyInt
+  createdAt     DateTime       @default(now()) @map("created_at")
   productStores ProductStore[]
+  users         User[]
+
   @@map("stores")
 }
 
 model Customer {
-  id        Int       @id @default(autoincrement()) @map("id_customer")
-  name      String    @db.VarChar(50)
-  email     String    @unique @db.VarChar(100)
-  password  String    @db.VarChar(255)
-  latitude  Decimal?  @db.Decimal(10, 7)
-  longitude Decimal?  @db.Decimal(10, 7)
-  createdAt DateTime  @default(now()) @map("created_at")
+  id                     Int                     @id @default(autoincrement()) @map("id_customer")
+  name                   String                  @db.VarChar(50)
+  email                  String                  @unique @db.VarChar(100)
+  password               String                  @db.VarChar(255)
+  longitude              Decimal?                @db.Decimal(10, 7)
+  latitude               Decimal?                @db.Decimal(10, 7)
+  createdAt              DateTime                @default(now()) @map("created_at")
   recommendationRequests RecommendationRequest[]
+
   @@map("customers")
 }
 
 model User {
-  id        Int       @id @default(autoincrement()) @map("id_user")
-  storeId   Int       @map("stores_id_store")
-  name      String    @db.VarChar(50)
-  email     String    @unique @db.VarChar(100)
-  password  String    @db.VarChar(255)
-  role      String    @db.VarChar(10)
-  createdAt DateTime  @default(now()) @map("created_at")
-  store     Store     @relation(fields: [storeId], references: [id])
+  id        Int      @id @default(autoincrement()) @map("id_user")
+  storeId   Int      @map("stores_id_store")
+  name      String   @db.VarChar(50)
+  email     String   @unique @db.VarChar(100)
+  password  String   @db.VarChar(255)
+  role      String   @db.VarChar(10)
+  createdAt DateTime @default(now()) @map("created_at")
+  store     Store    @relation(fields: [storeId], references: [id])
+
+  @@index([storeId], map: "users_stores_id_store_fkey")
   @@map("users")
 }
 
 model Product {
-  id          Int       @id @default(autoincrement()) @map("id_product")
-  brandId     Int       @map("brands_id_brand")
-  modelName   String    @map("model_name") @db.VarChar(200)
-  screenSize  Decimal?  @map("screen_size") @db.Decimal(4, 1)
-  processor   String    @db.VarChar(100)
-  ram         String    @db.VarChar(20)
-  storage     String    @db.VarChar(10)
-  battery     String?   @db.VarChar(50)
-  weight      String    @db.VarChar(6)
-  releaseYear String    @map("release_year") @db.VarChar(4)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  brand           Brand             @relation(fields: [brandId], references: [id])
+  id              Int               @id @default(autoincrement()) @map("id_product")
+  brandId         Int               @map("brands_id_brand")
+  modelName       String            @map("model_name") @db.VarChar(200)
+  screenSize      Decimal?          @map("screen_size") @db.Decimal(4, 1)
+  processor       String            @db.VarChar(100)
+  ram             String            @db.VarChar(20)
+  storage         String            @db.VarChar(10)
+  battery         String?           @db.VarChar(50)
+  weight          String            @db.VarChar(6)
+  releaseYear     String            @map("release_year") @db.VarChar(4)
+  createdAt       DateTime          @default(now()) @map("created_at")
   productCriteria ProductCriteria[]
   productStores   ProductStore[]
+  brand           Brand             @relation(fields: [brandId], references: [id])
+
+  @@index([brandId], map: "products_brands_id_brand_fkey")
   @@map("products")
 }
 
 model ProductStore {
-  id          Int       @id @default(autoincrement()) @map("id_product_store")
-  productId   Int       @map("products_id_product")
-  storeId     Int       @map("stores_id_store")
-  price       Int       @db.Int 
-  stock       Int
-  isAvailable Int       @map("is_available") @db.TinyInt
-  updatedAt   DateTime  @updatedAt @map("update_at")
-  product     Product   @relation(fields: [productId], references: [id])
-  store       Store     @relation(fields: [storeId], references: [id])
+  id                    Int                    @id @default(autoincrement()) @map("id_product_store")
+  productId             Int                    @map("products_id_product")
+  storeId               Int                    @map("stores_id_store")
+  price                 Int
+  stock                 Int
+  isAvailable           Int                    @map("is_available") @db.TinyInt
+  updatedAt             DateTime               @updatedAt @map("update_at")
+  product               Product                @relation(fields: [productId], references: [id])
+  store                 Store                  @relation(fields: [storeId], references: [id])
   recommendationResults RecommendationResult[]
+
+  @@index([productId], map: "product_store_products_id_product_fkey")
+  @@index([storeId], map: "product_store_stores_id_store_fkey")
   @@map("product_store")
 }
 
 model Criteria {
-  id        Int       @id @default(autoincrement()) @map("id_criteria")
-  code      String    @db.VarChar(2)
-  name      String    @db.VarChar(20)
-  type      String    @db.VarChar(10) // 'benefit' or 'cost'
-  createdAt DateTime  @default(now()) @map("created_at")
-  subCriteria SubCriteria[]
+  id                    Int                    @id @default(autoincrement()) @map("id_criteria")
+  code                  String                 @db.VarChar(2)
+  name                  String                 @db.VarChar(20)
+  type                  String                 @db.VarChar(10)
+  createdAt             DateTime               @default(now()) @map("created_at")
+  recommendationWeights RecommendationWeight[]
+  subCriteria           SubCriteria[]
+
   @@map("criteria")
 }
 
 model SubCriteria {
-  id           Int       @id @default(autoincrement()) @map("id_sub_criteria")
-  criteriaId   Int       @map("criteria_id_criteria")
-  description  String    @db.VarChar(100)
-  valueNumeric Int       @map("value_numeric") @db.Int
-  createdAt    DateTime  @default(now()) @map("created_at")
-  criteria             Criteria               @relation(fields: [criteriaId], references: [id])
-  productCriteria      ProductCriteria[]
-  recommendationWeight RecommendationWeight[]
+  id              Int               @id @default(autoincrement()) @map("id_sub_criteria")
+  criteriaId      Int               @map("criteria_id_criteria")
+  description     String            @db.VarChar(100)
+  valueNumeric    Int               @map("value_numeric")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  productCriteria ProductCriteria[]
+  criteria        Criteria          @relation(fields: [criteriaId], references: [id])
+
+  @@index([criteriaId], map: "sub_criteria_criteria_id_criteria_fkey")
   @@map("sub_criteria")
 }
 
 model ProductCriteria {
-  id            Int @id @default(autoincrement()) @map("id_product_criteria")
-  productId     Int @map("products_id_product")
-  subCriteriaId Int @map("sub_criteria_id_sub_criteria")
-  product     Product     @relation(fields: [productId], references: [id])
-  subCriteria SubCriteria @relation(fields: [subCriteriaId], references: [id])
+  id            Int         @id @default(autoincrement()) @map("id_product_criteria")
+  productId     Int         @map("products_id_product")
+  subCriteriaId Int         @map("sub_criteria_id_sub_criteria")
+  product       Product     @relation(fields: [productId], references: [id])
+  subCriteria   SubCriteria @relation(fields: [subCriteriaId], references: [id])
+
+  @@index([productId], map: "product_criteria_products_id_product_fkey")
+  @@index([subCriteriaId], map: "product_criteria_sub_criteria_id_sub_criteria_fkey")
   @@map("product_criteria")
 }
 
 model RecommendationRequest {
-  id         Int      @id @default(autoincrement()) @map("id_recommendation_request")
-  customerId Int      @map("customers_id_customer")
-  kebutuhan  String   @db.VarChar(100)
-  budgetMin  Int      @map("budget_min") @db.Int
-  budgetMax  Int      @map("budget_max") @db.Int
-  status     String   @db.VarChar(9)
-  userLat    Decimal? @map("user_lat") @db.Decimal(10, 8)
-  userLng    Decimal? @map("user_lng") @db.Decimal(11, 8)
-  createdAt  DateTime @default(now()) @map("created_at")
+  id                    Int                    @id @default(autoincrement()) @map("id_recommendation_request")
+  customerId            Int                    @map("customers_id_customer")
+  kebutuhan             String                 @db.VarChar(100)
+  budgetMin             Int                    @map("budget_min")
+  budgetMax             Int                    @map("budget_max")
+  status                String                 @db.VarChar(9)
+  createdAt             DateTime               @default(now()) @map("created_at")
+  userLat               Decimal?               @map("user_lat") @db.Decimal(10, 8)
+  userLng               Decimal?               @map("user_lng") @db.Decimal(11, 8)
   customer              Customer               @relation(fields: [customerId], references: [id])
-  recommendationWeights RecommendationWeight[]
   recommendationResults RecommendationResult[]
+  recommendationWeights RecommendationWeight[]
+
+  @@index([customerId], map: "recommendation_requests_customers_id_customer_fkey")
   @@map("recommendation_requests")
 }
 
 model RecommendationWeight {
-  id            Int     @id @default(autoincrement()) @map("id_recommendation_weight")
-  requestId     Int     @map("recommendation_requests_id_recommendation_request")
-  subCriteriaId Int     @map("sub_criteria_id_sub_criteria")
-  weight        Decimal @db.Decimal(5, 4)
-  request     RecommendationRequest @relation(fields: [requestId], references: [id])
-  subCriteria SubCriteria           @relation(fields: [subCriteriaId], references: [id])
+  id         Int                   @id @default(autoincrement()) @map("id_recommendation_weight")
+  requestId  Int                   @map("recommendation_requests_id_recommendation_request")
+  criteriaId Int                   @map("criteria_id_criteria")
+  weight     Decimal               @db.Decimal(5, 4)
+  criteria   Criteria              @relation(fields: [criteriaId], references: [id])
+  request    RecommendationRequest @relation(fields: [requestId], references: [id])
+
+  @@index([requestId], map: "recommendation_weight_recommendation_requests_id_recommenda_fkey")
+  @@index([criteriaId], map: "recommendation_weight_sub_criteria_id_sub_criteria_fkey")
   @@map("recommendation_weight")
 }
 
 model RecommendationResult {
-  id             Int      @id @default(autoincrement()) @map("id_recommendation_result")
-  requestId      Int      @map("recommendation_requests_id_recommendation_request")
-  productStoreId Int      @map("product_store_id_product_store")
-  methodUsed     String   @map("method_used") @db.VarChar(6)
-  score          Decimal  @db.Decimal(10, 6)
-  ranking        Int      @map("ranking")
-  createdAt      DateTime @default(now()) @map("created_at")
-  request      RecommendationRequest @relation(fields: [requestId], references: [id])
-  productStore ProductStore          @relation(fields: [productStoreId], references: [id])
+  id             Int                   @id @default(autoincrement()) @map("id_recommendation_result")
+  requestId      Int                   @map("recommendation_requests_id_recommendation_request")
+  productStoreId Int                   @map("product_store_id_product_store")
+  methodUsed     String                @map("method_used") @db.VarChar(6)
+  score          Decimal               @db.Decimal(10, 6)
+  ranking        Int                   @map("ranking")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  productStore   ProductStore          @relation(fields: [productStoreId], references: [id])
+  request        RecommendationRequest @relation(fields: [requestId], references: [id])
+
+  @@index([productStoreId], map: "recommendation_result_product_store_id_product_store_fkey")
+  @@index([requestId], map: "recommendation_result_recommendation_requests_id_recommenda_fkey")
   @@map("recommendation_result")
 }

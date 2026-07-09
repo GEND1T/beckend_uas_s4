@@ -19,7 +19,7 @@ export class SpkController {
       }
 
       const parsedWeights = weights.map((w: any) => ({
-        subCriteriaId: parseInt(w.subCriteriaId),
+        criteriaId: parseInt(w.criteriaId),
         weight: parseFloat(w.weight)
       }));
 

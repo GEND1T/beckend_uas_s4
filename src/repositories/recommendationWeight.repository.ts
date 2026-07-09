@@ -5,9 +5,7 @@ export class RecommendationWeightRepository {
   async findAll(): Promise<RecommendationWeight[]> {
     return prisma.recommendationWeight.findMany({
       include: {
-        subCriteria: {
-          include: { criteria: true }
-        }
+        criteria: true
       }
     });
   }
@@ -16,9 +14,7 @@ export class RecommendationWeightRepository {
     return prisma.recommendationWeight.findUnique({
       where: { id },
       include: {
-        subCriteria: {
-          include: { criteria: true }
-        }
+        criteria: true
       }
     });
   }
@@ -27,9 +23,7 @@ export class RecommendationWeightRepository {
     return prisma.recommendationWeight.findMany({
       where: { requestId },
       include: {
-        subCriteria: {
-          include: { criteria: true }
-        }
+        criteria: true
       }
     });
   }
