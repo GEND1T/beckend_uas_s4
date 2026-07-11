@@ -19,6 +19,133 @@ servers:
   - url: http://localhost:3000
     description: Local Development Server
 paths:
+  /api/superadmin/products:
+    post:
+      summary: Create a master product with automated specs criteria mapping
+      description: |
+        Creates a new master product in the catalog.
+        The backend automatically standardizes and parses the raw specifications strings (RAM, Storage, Processor, Battery, Weight, Screen Size, Release Year), matches them to the corresponding `id_sub_criteria`, and saves the relations in the `product_criteria` junction table in a single transaction.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - brands_id_brand
+                - stores_id_store
+                - model_name
+                - screen_size
+                - processor
+                - ram
+                - storage
+                - battery
+                - weight
+                - release_year
+                - price
+                - stock
+                - is_available
+              properties:
+                brands_id_brand:
+                  type: integer
+                  description: Brand ID reference (FK to brands).
+                  example: 1
+                stores_id_store:
+                  type: integer
+                  description: Store ID reference (FK to stores) to register inventory.
+                  example: 2
+                model_name:
+                  type: string
+                  description: Laptop model name.
+                  example: "Asus Zenbook 14"
+                screen_size:
+                  type: number
+                  format: float
+                  description: Screen size in inches.
+                  example: 14.0
+                processor:
+                  type: string
+                  description: Raw processor string specification.
+                  example: "Intel Core i7"
+                ram:
+                  type: string
+                  description: Raw RAM string specification.
+                  example: "16GB"
+                storage:
+                  type: string
+                  description: Raw storage string specification.
+                  example: "1TB SSD"
+                battery:
+                  type: string
+                  description: Raw battery capacity string specification.
+                  example: "65Wh"
+                weight:
+                  type: string
+                  description: Raw weight specification.
+                  example: "1.2kg"
+                release_year:
+                  type: string
+                  description: Release year specification.
+                  example: "2024"
+                price:
+                  type: integer
+                  description: Unit price of the laptop in the store inventory (real currency value).
+                  example: 18500000
+                stock:
+                  type: integer
+                  description: Stock count in the store inventory.
+                  example: 10
+                is_available:
+                  type: integer
+                  enum: [0, 1]
+                  description: Inventory availability status (1 = Active, 0 = Inactive).
+                  example: 1
+      responses:
+        '201':
+          description: Product created and specifications auto-mapped successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Product created and specifications auto-mapped successfully."
+                  data:
+                    type: object
+                    properties:
+                      id_product:
+                        type: integer
+                        example: 123
+                      id_product_store:
+                        type: integer
+                        example: 45
+                      model_name:
+                        type: string
+                        example: "Asus Zenbook 14"
+                      auto_mapped_criteria_ids:
+                        type: array
+                        items:
+                          type: integer
+                        example: [8, 13, 18, 24, 29, 33, 40]
+        '400':
+          description: Bad request (missing required fields or invalid parameters)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/customer/spk/requests:
     post:
       summary: Create recommendation request and trigger SPK calculation

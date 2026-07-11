@@ -33,8 +33,7 @@ export class ProductController {
         storage,
         battery,
         weight,
-        releaseYear,
-        subCriteriaIds
+        releaseYear
       } = req.body;
 
       if (!brandId || !modelName || !processor || !ram || !storage || weight === undefined || !releaseYear) {
@@ -53,11 +52,10 @@ export class ProductController {
         storage,
         battery: battery !== undefined && battery !== null ? String(battery) : null,
         weight: String(weight),
-        releaseYear: String(releaseYear),
-        subCriteriaIds: Array.isArray(subCriteriaIds) ? subCriteriaIds.map((id: any) => parseInt(id)) : []
+        releaseYear: String(releaseYear)
       };
 
-      const newProduct = await productService.createProduct(productInput);
+      const newProduct = await productService.createProductWithCriteria(productInput);
       res.status(201).json({ success: true, message: 'Product created successfully.', data: newProduct });
     } catch (error) {
       next(error);
