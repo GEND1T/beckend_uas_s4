@@ -1055,26 +1055,51 @@ Endpoints for register, catalog browsing, profile editing, and SPK recommendatio
 ---
 
 ### POST `/api/customer/spk/requests`
-- **Description:** Submits budget criteria and sub-criteria weights to generate laptop recommendations. The engine filters products strictly within budget, applies weights normalization, executes **SAW**, **WP**, and **TOPSIS** algorithms, and returns calculations ranked.
+- **Description:** Submits budget criteria and criteria weights to generate laptop recommendations. The backend isolates the calculations in a single atomic MySQL transaction that generates Top 10 results for three methods simultaneously (**SAW**, **WP**, and **TOPSIS**). The engine filters products strictly within the real currency budget and calculates normalized scores using direct Criteria ID weights.
 - **Authorization:** Bearer Token (Role: `customer`)
 - **Request Payload:**
   - **Type:** JSON (Body)
+  - **Fields:**
+    - `customerId` (Integer, Optional): ID of the customer (resolved from authentication token if omitted).
+    - `kebutuhan` (String, Required): Description of the user's specific laptop requirements or use-case context.
+    - `budgetMin` (Integer, Required): The minimum budget limit specified in real currency (e.g. `3000000` IDR). Must not be a 1-5 scale.
+    - `budgetMax` (Integer, Required): The maximum budget limit specified in real currency (e.g. `10000000` IDR). Must not be a 1-5 scale.
+    - `userLat` (Float/Decimal, Optional): Latitude of the customer's location for distance calculations. If not provided, fallback to the profile coordinates.
+    - `userLng` (Float/Decimal, Optional): Longitude of the customer's location for distance calculations. If not provided, fallback to the profile coordinates.
+    - `weights` (Array of Objects, Required): Criteria weights mapping. Weights map directly to main criteria IDs:
+      - `criteriaId` (Integer, Required): The main Criteria ID (e.g., `1` for Harga, `2` for RAM, `3` for Storage, `4` for Battery, `5` for Berat).
+      - `weight` (Float/Decimal, Required): Weight value for the corresponding criteria (e.g. `0.30`).
+  - **Example:**
   ```json
   {
-    "kebutuhan": "Gaming & Coding",
-    "budgetMin": 10000000,
-    "budgetMax": 20000000,
-    "userLat": -6.1754,
-    "userLng": 106.8272,
+    "customerId": 1,
+    "kebutuhan": "Laptop untuk desain grafis ringan dan tugas kampus",
+    "budgetMin": 3000000,
+    "budgetMax": 10000000,
+    "userLat": -6.9825,
+    "userLng": 110.4284,
     "weights": [
-      { "subCriteriaId": 1, "weight": 0.40 },
-      { "subCriteriaId": 5, "weight": 0.35 },
-      { "subCriteriaId": 8, "weight": 0.25 }
+      { "criteriaId": 1, "weight": 0.30 },
+      { "criteriaId": 2, "weight": 0.25 },
+      { "criteriaId": 3, "weight": 0.20 },
+      { "criteriaId": 4, "weight": 0.15 },
+      { "criteriaId": 5, "weight": 0.10 }
     ]
   }
   ```
 - **Success Response:**
   - **Status:** 201 Created
+  - **Fields in Response:**
+    - `id` (Integer): The newly created Recommendation Request ID (`req_id`).
+    - `recommendationWeights` (Array): Detailed criteria weights mapped to the request.
+    - `recommendationResults` (Array): Calculations for the top 10 recommended laptop alternatives generated simultaneously for **SAW**, **WP**, and **TOPSIS**, sorted by rank. Each result includes:
+      - `id` (Integer): The result record ID.
+      - `requestId` (Integer): The ID of the associated recommendation request.
+      - `productStoreId` (Integer): The ID of the product-store inventory mapping (`product_store_id`).
+      - `methodUsed` (String): The calculation method used (`SAW`, `WP`, or `TOPSIS`).
+      - `score` (Decimal): The calculated SPK score.
+      - `ranking` (Integer): The ordinal ranking of the recommendation (1-10).
+  - **Example:**
   ```json
   {
     "success": true,
@@ -1082,56 +1107,221 @@ Endpoints for register, catalog browsing, profile editing, and SPK recommendatio
     "data": {
       "id": 101,
       "customerId": 1,
-      "kebutuhan": "Gaming & Coding",
-      "budgetMin": 10000000,
-      "budgetMax": 20000000,
+      "kebutuhan": "Laptop untuk desain grafis ringan dan tugas kampus",
+      "budgetMin": 3000000,
+      "budgetMax": 10000000,
       "status": "SUCCESS",
-      "userLat": "-6.17540000",
-      "userLng": "106.82720000",
-      "createdAt": "2026-07-07T02:45:00.000Z",
+      "userLat": "-6.98250000",
+      "userLng": "110.42840000",
+      "createdAt": "2026-07-11T02:45:00.000Z",
       "recommendationWeights": [
         {
           "id": 201,
-          "weight": "0.4000",
-          "subCriteria": {
-            "description": "16 GB",
-            "criteria": { "code": "C1", "name": "RAM" }
+          "requestId": 101,
+          "criteriaId": 1,
+          "weight": "0.3000",
+          "criteria": {
+            "id": 1,
+            "code": "C1",
+            "name": "Harga",
+            "type": "cost",
+            "createdAt": "2026-07-07T02:00:00.000Z"
+          }
+        },
+        {
+          "id": 202,
+          "requestId": 101,
+          "criteriaId": 2,
+          "weight": "0.2500",
+          "criteria": {
+            "id": 2,
+            "code": "C2",
+            "name": "RAM",
+            "type": "benefit",
+            "createdAt": "2026-07-07T02:00:00.000Z"
+          }
+        },
+        {
+          "id": 203,
+          "requestId": 101,
+          "criteriaId": 3,
+          "weight": "0.2000",
+          "criteria": {
+            "id": 3,
+            "code": "C3",
+            "name": "Storage",
+            "type": "benefit",
+            "createdAt": "2026-07-07T02:00:00.000Z"
+          }
+        },
+        {
+          "id": 204,
+          "requestId": 101,
+          "criteriaId": 4,
+          "weight": "0.1500",
+          "criteria": {
+            "id": 4,
+            "code": "C4",
+            "name": "Battery",
+            "type": "benefit",
+            "createdAt": "2026-07-07T02:00:00.000Z"
+          }
+        },
+        {
+          "id": 205,
+          "requestId": 101,
+          "criteriaId": 5,
+          "weight": "0.1000",
+          "criteria": {
+            "id": 5,
+            "code": "C5",
+            "name": "Berat",
+            "type": "cost",
+            "createdAt": "2026-07-07T02:00:00.000Z"
           }
         }
       ],
       "recommendationResults": [
         {
           "id": 501,
+          "requestId": 101,
+          "productStoreId": 12,
           "methodUsed": "TOPSIS",
           "score": "0.892400",
           "ranking": 1,
+          "createdAt": "2026-07-11T02:45:00.000Z",
           "productStore": {
             "id": 12,
-            "price": 14500000,
+            "productId": 3,
+            "storeId": 1,
+            "price": 8500000,
+            "stock": 5,
+            "isAvailable": 1,
+            "updatedAt": "2026-07-07T02:30:00.000Z",
             "distanceInKm": 5.43,
-            "product": { "modelName": "ZenBook 14", "brand": { "name": "ASUS" } },
-            "store": { 
+            "product": {
+              "id": 3,
+              "brandId": 1,
+              "modelName": "VivoBook 14",
+              "screenSize": "14.0",
+              "processor": "Intel Core i5",
+              "ram": "8GB",
+              "storage": "512GB",
+              "battery": "42Wh",
+              "weight": "1.4",
+              "releaseYear": "2023",
+              "createdAt": "2026-07-07T02:00:00.000Z",
+              "brand": {
+                "id": 1,
+                "name": "ASUS"
+              }
+            },
+            "store": {
+              "id": 1,
               "name": "Laptop Zone",
+              "address": "123 Tech Street",
+              "city": "Jakarta",
               "latitude": "-6.20880000",
               "longitude": "106.84560000",
+              "phone": "081234567890",
+              "isActive": 1,
+              "createdAt": "2026-07-07T02:00:00.000Z",
               "distanceInKm": 5.43
             }
           }
         },
         {
           "id": 502,
+          "requestId": 101,
+          "productStoreId": 12,
           "methodUsed": "SAW",
           "score": "0.920000",
           "ranking": 1,
+          "createdAt": "2026-07-11T02:45:00.000Z",
           "productStore": {
             "id": 12,
-            "price": 14500000,
+            "productId": 3,
+            "storeId": 1,
+            "price": 8500000,
+            "stock": 5,
+            "isAvailable": 1,
+            "updatedAt": "2026-07-07T02:30:00.000Z",
             "distanceInKm": 5.43,
-            "product": { "modelName": "ZenBook 14", "brand": { "name": "ASUS" } },
-            "store": { 
+            "product": {
+              "id": 3,
+              "brandId": 1,
+              "modelName": "VivoBook 14",
+              "screenSize": "14.0",
+              "processor": "Intel Core i5",
+              "ram": "8GB",
+              "storage": "512GB",
+              "battery": "42Wh",
+              "weight": "1.4",
+              "releaseYear": "2023",
+              "createdAt": "2026-07-07T02:00:00.000Z",
+              "brand": {
+                "id": 1,
+                "name": "ASUS"
+              }
+            },
+            "store": {
+              "id": 1,
               "name": "Laptop Zone",
+              "address": "123 Tech Street",
+              "city": "Jakarta",
               "latitude": "-6.20880000",
               "longitude": "106.84560000",
+              "phone": "081234567890",
+              "isActive": 1,
+              "createdAt": "2026-07-07T02:00:00.000Z",
+              "distanceInKm": 5.43
+            }
+          }
+        },
+        {
+          "id": 503,
+          "requestId": 101,
+          "productStoreId": 12,
+          "methodUsed": "WP",
+          "score": "0.854300",
+          "ranking": 1,
+          "createdAt": "2026-07-11T02:45:00.000Z",
+          "productStore": {
+            "id": 12,
+            "productId": 3,
+            "storeId": 1,
+            "price": 8500000,
+            "stock": 5,
+            "isAvailable": 1,
+            "updatedAt": "2026-07-07T02:30:00.000Z",
+            "distanceInKm": 5.43,
+            "product": {
+              "id": 3,
+              "brandId": 1,
+              "modelName": "VivoBook 14",
+              "screenSize": "14.0",
+              "processor": "Intel Core i5",
+              "ram": "8GB",
+              "storage": "512GB",
+              "battery": "42Wh",
+              "weight": "1.4",
+              "releaseYear": "2023",
+              "createdAt": "2026-07-07T02:00:00.000Z",
+              "brand": {
+                "id": 1,
+                "name": "ASUS"
+              }
+            },
+            "store": {
+              "id": 1,
+              "name": "Laptop Zone",
+              "address": "123 Tech Street",
+              "city": "Jakarta",
+              "latitude": "-6.20880000",
+              "longitude": "106.84560000",
+              "phone": "081234567890",
+              "isActive": 1,
+              "createdAt": "2026-07-07T02:00:00.000Z",
               "distanceInKm": 5.43
             }
           }
@@ -1139,7 +1329,6 @@ Endpoints for register, catalog browsing, profile editing, and SPK recommendatio
       ]
     }
   }
-  ```
 
 ### GET `/api/customer/spk/requests`
 - **Description:** Retrieve the list of all recommendation requests submitted by the customer.
