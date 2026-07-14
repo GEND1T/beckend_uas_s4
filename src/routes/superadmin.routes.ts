@@ -5,12 +5,23 @@ import { storeController } from '../controllers/superadmin/store.controller';
 import { userController } from '../controllers/superadmin/user.controller';
 import { criteriaController } from '../controllers/superadmin/criteria.controller';
 import { productController } from '../controllers/superadmin/product.controller';
+import { recommendationController } from '../controllers/superadmin/recommendation.controller';
 
 const router = Router();
 
 // Apply auth middleware to all superadmin routes
 router.use(authMiddleware);
-router.use(requireRole(['superadmin']));
+router.use((req, res, next) => {
+  const isRecommendationsGet = req.path.startsWith('/recommendations') && req.method === 'GET';
+  const isCriteriaGet = req.path.startsWith('/criteria') && req.method === 'GET';
+  const isSubCriteriaGet = req.path.startsWith('/sub-criteria') && req.method === 'GET';
+
+  if (isRecommendationsGet || isCriteriaGet || isSubCriteriaGet) {
+    return requireRole(['superadmin', 'admin'])(req, res, next);
+  }
+
+  return requireRole(['superadmin'])(req, res, next);
+});
 
 // Brands CRUD
 router.get('/brands', brandController.getAll);
@@ -53,5 +64,10 @@ router.get('/products/:id', productController.getById);
 router.post('/products', productController.create);
 router.put('/products/:id', productController.update);
 router.delete('/products/:id', productController.delete);
+
+// Recommendation History (Admin/Superadmin endpoints)
+router.get('/recommendations', recommendationController.getAll);
+router.get('/recommendations/:id', recommendationController.getById);
+router.delete('/recommendations/:id', recommendationController.delete);
 
 export default router;
