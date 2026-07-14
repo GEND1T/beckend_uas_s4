@@ -687,52 +687,84 @@ All requests require the header: `Authorization: Bearer <superadmin_jwt_token>`.
   - **Status:** 200 OK (Contains same format as list item)
 
 ### POST `/api/superadmin/products`
-- **Description:** Adds a new laptop product to the global catalog and links it to the store. Mappings to SPK evaluation criteria are auto-resolved using backend text standardization (normalization & regex) and saved in a single database transaction.
+- **Description:** Adds a new laptop product to the global catalog. Mappings to SPK evaluation criteria are auto-resolved using specifications and saved in a single database transaction. Optionally uploads a product image to Cloudinary.
 - **Authorization:** Bearer Token (Role: `superadmin`)
 - **Request Payload:**
-  - **Type:** JSON (Body)
-  ```json
-  {
-    "brands_id_brand": 1,
-    "stores_id_store": 2,
-    "model_name": "Asus Zenbook 14",
-    "screen_size": 14.0,
-    "processor": "Intel Core i7",
-    "ram": "16GB",
-    "storage": "1TB SSD",
-    "battery": "65Wh",
-    "weight": "1.2kg",
-    "release_year": "2024",
-    "price": 18500000,
-    "stock": 10,
-    "is_available": 1
-  }
-  ```
+  - **Type:** `multipart/form-data`
+  - **Fields:**
+    - `brandId` (text, required): Integer ID of the brand
+    - `modelName` (text, required): Model name of the laptop
+    - `screenSize` (text, optional): Decimal number (e.g. `14.0`)
+    - `processor` (text, required): Processor model (e.g. `Intel Core i7`)
+    - `ram` (text, required): RAM spec (e.g. `16GB`)
+    - `storage` (text, required): Storage spec (e.g. `512GB`)
+    - `battery` (text, optional): Battery spec (e.g. `65Wh`)
+    - `weight` (text, required): Weight spec (e.g. `1.2`)
+    - `releaseYear` (text, required): Release year (e.g. `2024`)
+    - `image` (file, optional): Product image file (JPEG, JPG, PNG, WEBP)
 - **Success Response:**
   - **Status:** 201 Created
   ```json
   {
     "success": true,
-    "message": "Product created and specifications auto-mapped successfully.",
+    "message": "Product created successfully.",
     "data": {
-      "id_product": 123,
-      "id_product_store": 45,
-      "model_name": "Asus Zenbook 14",
-      "auto_mapped_criteria_ids": [8, 13, 18, 24, 29, 33, 40]
+      "id": 1,
+      "brandId": 1,
+      "modelName": "Asus Zenbook 14",
+      "imageUrl": "https://res.cloudinary.com/ecfyagfq/image/upload/v1720892010/spk_laptops/product_1.jpg",
+      "screenSize": "14.0",
+      "processor": "Intel Core i7",
+      "ram": "16GB",
+      "storage": "512GB",
+      "battery": "65Wh",
+      "weight": "1.2",
+      "releaseYear": "2024",
+      "createdAt": "2026-07-07T02:00:00.000Z",
+      "brand": {
+        "id": 1,
+        "name": "ASUS"
+      },
+      "productCriteria": [
+        {
+          "id": 1,
+          "productId": 1,
+          "subCriteriaId": 8,
+          "subCriteria": {
+            "id": 8,
+            "criteriaId": 2,
+            "description": "16 GB",
+            "valueNumeric": 5,
+            "criteria": {
+              "id": 2,
+              "code": "C2",
+              "name": "RAM",
+              "type": "benefit"
+            }
+          }
+        }
+      ]
     }
   }
   ```
 
 ### PUT `/api/superadmin/products/:id`
-- **Description:** Updates master specifications and rewrites the product criteria mapping table in a transaction if `subCriteriaIds` is supplied.
+- **Description:** Updates master specifications and rewrites the product criteria mapping table in a transaction if `subCriteriaIds` is supplied. Optionally uploads a new product image (which deletes the old image from Cloudinary).
 - **Authorization:** Bearer Token (Role: `superadmin`)
-- **Request Payload:** `id` (Path parameter), and JSON body:
-  ```json
-  {
-    "modelName": "ZenBook 14 OLED",
-    "subCriteriaIds": [1, 5, 9]
-  }
-  ```
+- **Request Payload:**
+  - **Type:** `multipart/form-data`
+  - **Fields:**
+    - `brandId` (text, optional): Integer ID of the brand
+    - `modelName` (text, optional): Model name
+    - `screenSize` (text, optional): Decimal number
+    - `processor` (text, optional): Processor model
+    - `ram` (text, optional): RAM spec
+    - `storage` (text, optional): Storage spec
+    - `battery` (text, optional): Battery spec
+    - `weight` (text, optional): Weight spec
+    - `releaseYear` (text, optional): Release year
+    - `subCriteriaIds` (text, optional): JSON array `[1, 5, 9]` or comma-separated string `"1,5,9"`
+    - `image` (file, optional): New product image file (JPEG, JPG, PNG, WEBP)
 - **Success Response:**
   - **Status:** 200 OK (Returns updated product JSON)
 

@@ -63,6 +63,7 @@
     id              Int               @id @default(autoincrement()) @map("id_product")
     brandId         Int               @map("brands_id_brand")
     modelName       String            @map("model_name") @db.VarChar(200)
+    imageUrl        String?           @map("image_url") @db.VarChar(255)
     screenSize      Decimal?          @map("screen_size") @db.Decimal(4, 1)
     processor       String            @db.VarChar(100)
     ram             String            @db.VarChar(20)

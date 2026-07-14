@@ -4,10 +4,12 @@ import { brandRepository } from '../repositories/brand.repository';
 import { subCriteriaRepository } from '../repositories/subCriteria.repository';
 import { Product } from '@prisma/client';
 import { mapSpecsToSubCriteria } from '../utils/specsMapper';
+import { deleteImage } from '../utils/cloudinary';
 
 export interface CreateProductInput {
   brandId: number;
   modelName: string;
+  imageUrl?: string | null;
   screenSize: number | null;
   processor: string;
   ram: string;
@@ -53,6 +55,7 @@ export class ProductService {
         data: {
           brandId: input.brandId,
           modelName: input.modelName,
+          imageUrl: input.imageUrl,
           screenSize: input.screenSize,
           processor: input.processor,
           ram: input.ram,
@@ -105,6 +108,7 @@ export class ProductService {
           data: {
             brandId: input.brandId,
             modelName: input.modelName,
+            imageUrl: input.imageUrl,
             screenSize: input.screenSize,
             processor: input.processor,
             ram: input.ram,
@@ -172,6 +176,7 @@ export class ProductService {
       const updateData: any = {};
       if (input.brandId !== undefined) updateData.brandId = input.brandId;
       if (input.modelName !== undefined) updateData.modelName = input.modelName;
+      if (input.imageUrl !== undefined) updateData.imageUrl = input.imageUrl;
       if (input.screenSize !== undefined) updateData.screenSize = input.screenSize;
       if (input.processor !== undefined) updateData.processor = input.processor;
       if (input.ram !== undefined) updateData.ram = input.ram;
@@ -221,7 +226,12 @@ export class ProductService {
   }
 
   async deleteProduct(id: number): Promise<Product> {
-    await this.getProductById(id);
+    const product = await this.getProductById(id);
+
+    // If it has an imageUrl, delete it from Cloudinary
+    if (product.imageUrl) {
+      await deleteImage(product.imageUrl);
+    }
 
     return prisma.$transaction(async (tx) => {
       // Delete child relations first

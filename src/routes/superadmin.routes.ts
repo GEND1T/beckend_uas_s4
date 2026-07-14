@@ -6,6 +6,7 @@ import { userController } from '../controllers/superadmin/user.controller';
 import { criteriaController } from '../controllers/superadmin/criteria.controller';
 import { productController } from '../controllers/superadmin/product.controller';
 import { recommendationController } from '../controllers/superadmin/recommendation.controller';
+import { uploadSingle } from '../middlewares/upload.middleware';
 
 const router = Router();
 
@@ -61,8 +62,8 @@ router.delete('/sub-criteria/:id', criteriaController.deleteSubCriteria);
 // Products CRUD
 router.get('/products', productController.getAll);
 router.get('/products/:id', productController.getById);
-router.post('/products', productController.create);
-router.put('/products/:id', productController.update);
+router.post('/products', uploadSingle, productController.create);
+router.put('/products/:id', uploadSingle, productController.update);
 router.delete('/products/:id', productController.delete);
 
 // Recommendation History (Admin/Superadmin endpoints)
