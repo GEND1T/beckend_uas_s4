@@ -5,7 +5,12 @@ import { recommendationRequestRepository } from '../../repositories/recommendati
 export class RecommendationController {
   async getAll(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const list = await recommendationRequestRepository.findAll();
+      let list;
+      if (req.user?.role === 'admin' && req.user.storeId) {
+        list = await recommendationRequestRepository.findAllByStoreId(req.user.storeId);
+      } else {
+        list = await recommendationRequestRepository.findAll();
+      }
       res.status(200).json({ success: true, data: list });
     } catch (error) {
       next(error);
@@ -19,6 +24,18 @@ export class RecommendationController {
       if (!detail) {
         return res.status(404).json({ success: false, message: 'Recommendation request not found.' });
       }
+
+      // If store admin, check if this recommendation request has any product from their store
+      if (req.user?.role === 'admin' && req.user.storeId) {
+        const results = detail.recommendationResults || [];
+        const hasStoreProduct = results.some(
+          (r: any) => r.productStore?.storeId === req.user?.storeId
+        );
+        if (!hasStoreProduct) {
+          return res.status(403).json({ success: false, message: 'Forbidden: Access to this recommendation request is restricted to your store.' });
+        }
+      }
+
       res.status(200).json({ success: true, data: detail });
     } catch (error) {
       next(error);

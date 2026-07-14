@@ -11,7 +11,17 @@ const router = Router();
 
 // Apply auth middleware to all superadmin routes
 router.use(authMiddleware);
-router.use(requireRole(['superadmin']));
+router.use((req, res, next) => {
+  const isRecommendationsGet = req.path.startsWith('/recommendations') && req.method === 'GET';
+  const isCriteriaGet = req.path.startsWith('/criteria') && req.method === 'GET';
+  const isSubCriteriaGet = req.path.startsWith('/sub-criteria') && req.method === 'GET';
+
+  if (isRecommendationsGet || isCriteriaGet || isSubCriteriaGet) {
+    return requireRole(['superadmin', 'admin'])(req, res, next);
+  }
+
+  return requireRole(['superadmin'])(req, res, next);
+});
 
 // Brands CRUD
 router.get('/brands', brandController.getAll);

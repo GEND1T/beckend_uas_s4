@@ -27,6 +27,40 @@ export class RecommendationRequestRepository {
     });
   }
 
+  async findAllByStoreId(storeId: number): Promise<any[]> {
+    return prisma.recommendationRequest.findMany({
+      where: {
+        recommendationResults: {
+          some: {
+            productStore: {
+              storeId: storeId
+            }
+          }
+        }
+      },
+      include: {
+        customer: true,
+        recommendationWeights: {
+          include: {
+            criteria: true
+          }
+        },
+        recommendationResults: {
+          include: {
+            productStore: {
+              include: {
+                product: { include: { brand: true } },
+                store: true
+              }
+            }
+          },
+          orderBy: { ranking: 'asc' }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
   async findById(id: number): Promise<any | null> {
     return prisma.recommendationRequest.findUnique({
       where: { id },
