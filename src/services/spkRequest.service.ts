@@ -17,6 +17,64 @@ export interface CreateSpkRequestInput {
 }
 
 export class SpkRequestService {
+  private groupRecommendationResults(results: any[]): any[] {
+    const methods = ['SAW', 'WP', 'TOPSIS'];
+    
+    return methods.map(method => {
+      const methodResults = results.filter(r => r.methodUsed === method);
+      
+      // Group by product using a Map to maintain insertion order
+      const productMap = new Map<number, any>();
+      
+      for (const row of methodResults) {
+        if (!row.productStore) continue;
+        
+        const productId = row.productStore.productId;
+        const score = row.score ? parseFloat(row.score.toString()) : 0;
+        
+        const storeVariant = {
+          store_name: row.productStore.store?.name ?? 'Unknown Store',
+          price: row.productStore.price,
+          score: score,
+          distanceInKm: row.productStore.distanceInKm ?? null,
+          storeId: row.productStore.storeId,
+          productStoreId: row.productStore.id,
+          stock: row.productStore.stock,
+          isAvailable: row.productStore.isAvailable
+        };
+        
+        if (!productMap.has(productId)) {
+          const brandName = row.productStore.product?.brand?.name ?? '';
+          const modelName = row.productStore.product?.modelName ?? 'Unknown Product';
+          const productName = brandName ? `${brandName} ${modelName}` : modelName;
+          
+          productMap.set(productId, {
+            rank: row.ranking,
+            product_name: productName,
+            available_stores: [storeVariant]
+          });
+        } else {
+          productMap.get(productId).available_stores.push(storeVariant);
+        }
+      }
+      
+      const recommendations = Array.from(productMap.values()).map(p => {
+        const best_score = Math.max(...p.available_stores.map((s: any) => s.score));
+        return {
+          rank: p.rank,
+          product_name: p.product_name,
+          best_score: best_score,
+          available_stores: p.available_stores
+        };
+      });
+      
+      return {
+        method: method,
+        recommendations: recommendations
+      };
+    });
+  }
+
   // Helper to map request results and calculate store distances with fallback
   private attachDistanceToRequest(request: any): any {
     if (!request) return request;
@@ -60,6 +118,9 @@ export class SpkRequestService {
           }
         };
       });
+
+      // Group the results into the nested structure after calculating distances
+      request.recommendationResults = this.groupRecommendationResults(request.recommendationResults);
     }
 
     return request;

@@ -687,26 +687,41 @@ All requests require the header: `Authorization: Bearer <superadmin_jwt_token>`.
   - **Status:** 200 OK (Contains same format as list item)
 
 ### POST `/api/superadmin/products`
-- **Description:** Creates a master laptop model and maps its SPK criteria values (via `subCriteriaIds` array) in a transaction.
+- **Description:** Adds a new laptop product to the global catalog and links it to the store. Mappings to SPK evaluation criteria are auto-resolved using backend text standardization (normalization & regex) and saved in a single database transaction.
 - **Authorization:** Bearer Token (Role: `superadmin`)
 - **Request Payload:**
   - **Type:** JSON (Body)
   ```json
   {
-    "brandId": 1,
-    "modelName": "ZenBook 14",
-    "screenSize": 14.0,
-    "processor": "AMD Ryzen 7",
+    "brands_id_brand": 1,
+    "stores_id_store": 2,
+    "model_name": "Asus Zenbook 14",
+    "screen_size": 14.0,
+    "processor": "Intel Core i7",
     "ram": "16GB",
-    "storage": "512GB",
-    "battery": "67Wh",
-    "weight": 1.39,
-    "releaseYear": "2024-01-01T00:00:00.000Z",
-    "subCriteriaIds": [1, 5, 8]
+    "storage": "1TB SSD",
+    "battery": "65Wh",
+    "weight": "1.2kg",
+    "release_year": "2024",
+    "price": 18500000,
+    "stock": 10,
+    "is_available": 1
   }
   ```
 - **Success Response:**
-  - **Status:** 201 Created (Returns full product JSON with mapped criteria associations)
+  - **Status:** 201 Created
+  ```json
+  {
+    "success": true,
+    "message": "Product created and specifications auto-mapped successfully.",
+    "data": {
+      "id_product": 123,
+      "id_product_store": 45,
+      "model_name": "Asus Zenbook 14",
+      "auto_mapped_criteria_ids": [8, 13, 18, 24, 29, 33, 40]
+    }
+  }
+  ```
 
 ### PUT `/api/superadmin/products/:id`
 - **Description:** Updates master specifications and rewrites the product criteria mapping table in a transaction if `subCriteriaIds` is supplied.

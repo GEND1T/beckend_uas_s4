@@ -3,6 +3,7 @@ import { productRepository } from '../repositories/product.repository';
 import { brandRepository } from '../repositories/brand.repository';
 import { subCriteriaRepository } from '../repositories/subCriteria.repository';
 import { Product } from '@prisma/client';
+import { mapSpecsToSubCriteria } from '../utils/specsMapper';
 
 export interface CreateProductInput {
   brandId: number;
@@ -87,6 +88,73 @@ export class ProductService {
         }
       }) as unknown as Product;
     });
+  }
+
+  async createProductWithCriteria(input: Omit<CreateProductInput, 'subCriteriaIds'>): Promise<Product> {
+    // 1. Verify brand exists
+    const brand = await brandRepository.findById(input.brandId);
+    if (!brand) {
+      throw new Error(`Brand with ID ${input.brandId} not found.`);
+    }
+
+    // 2. Perform creation in a transaction to ensure atomicity
+    try {
+      return await prisma.$transaction(async (tx) => {
+        // STEP A: Insert the raw data into the products table and retrieve the newly created id_product
+        const newProduct = await tx.product.create({
+          data: {
+            brandId: input.brandId,
+            modelName: input.modelName,
+            screenSize: input.screenSize,
+            processor: input.processor,
+            ram: input.ram,
+            storage: input.storage,
+            battery: input.battery,
+            weight: input.weight,
+            releaseYear: input.releaseYear
+          }
+        });
+
+        // STEP B: Pass the inputData to mapSpecsToSubCriteria helper to get matched id_sub_criteria
+        const matchedSubCriteriaIds = await mapSpecsToSubCriteria(tx, {
+          ram: input.ram,
+          storage: input.storage,
+          processor: input.processor,
+          battery: input.battery,
+          weight: input.weight,
+          screenSize: input.screenSize,
+          releaseYear: input.releaseYear
+        });
+
+        // STEP C: Execute a Prisma createMany on the product_criteria junction table
+        if (matchedSubCriteriaIds.length > 0) {
+          await tx.productCriteria.createMany({
+            data: matchedSubCriteriaIds.map(scId => ({
+              productId: newProduct.id,
+              subCriteriaId: scId
+            }))
+          });
+        }
+
+        // Fetch newly created product with its mappings
+        return tx.product.findUnique({
+          where: { id: newProduct.id },
+          include: {
+            brand: true,
+            productCriteria: {
+              include: {
+                subCriteria: {
+                  include: { criteria: true }
+                }
+              }
+            }
+          }
+        }) as unknown as Product;
+      });
+    } catch (error) {
+      console.error(`[ProductService] Failed to create product with criteria:`, error);
+      throw error;
+    }
   }
 
   async updateProduct(id: number, input: Partial<CreateProductInput>): Promise<Product> {
