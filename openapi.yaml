@@ -1,0 +1,454 @@
+openapi: 3.0.3
+info:
+  title: Laptop Recommendation Aggregator API - SPK Endpoints
+  description: |
+    API documentation for the Decision Support System (SPK) Laptop Recommendation engine.
+    This system runs SAW, WP, and TOPSIS algorithms simultaneously to calculate the top 10 recommended laptop alternatives for customers.
+    
+    ### Key Technical Rules:
+    - **Currency:** Budget limits (`budgetMin` and `budgetMax`) use real integer currency values (e.g. 3,000,000 to 15,000,000 IDR), NOT a 1-5 scale.
+    - **Weights mapping:** Weights map directly to the main Criteria IDs (`criteriaId`):
+      - `1`: Harga (Price) - Cost
+      - `2`: RAM - Benefit
+      - `3`: Storage - Benefit
+      - `4`: Battery - Benefit
+      - `5`: Berat (Weight) - Cost
+    - **Calculation Execution:** A single atomic transaction generates Top 10 results for SAW, WP, and TOPSIS simultaneously.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: Local Development Server
+paths:
+  /api/customer/spk/requests:
+    post:
+      summary: Create recommendation request and trigger SPK calculation
+      description: |
+        Submits customer criteria requirements and main criteria weights to trigger the SPK calculation (SAW, WP, and TOPSIS algorithms). 
+        Calculates and returns the top 10 products for each method in a single atomic MySQL transaction.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendationRequestPayload'
+            example:
+              customerId: 1
+              kebutuhan: "Laptop untuk desain grafis ringan dan tugas kampus"
+              budgetMin: 3000000
+              budgetMax: 10000000
+              userLat: -6.9825
+              userLng: 110.4284
+              weights:
+                - criteriaId: 1
+                  weight: 0.30
+                - criteriaId: 2
+                  weight: 0.25
+                - criteriaId: 3
+                  weight: 0.20
+                - criteriaId: 4
+                  weight: 0.15
+                - criteriaId: 5
+                  weight: 0.10
+      responses:
+        '201':
+          description: Recommendation calculated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationSuccessResponse'
+        '400':
+          description: Bad request (missing required fields or invalid parameters)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Retrieve customer recommendation request history
+      description: Returns list of all previous recommendation requests submitted by the logged-in customer.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RecommendationRequestData'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/customer/spk/requests/{id}:
+    get:
+      summary: Retrieve specific recommendation request details
+      description: Returns complete details of a specific recommendation request including SAW, WP, and TOPSIS ranked alternatives.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Recommendation Request ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationSuccessResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (request belongs to another customer)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    RecommendationRequestPayload:
+      type: object
+      required:
+        - kebutuhan
+        - budgetMin
+        - budgetMax
+        - weights
+      properties:
+        customerId:
+          type: integer
+          description: Optional. Explicit Customer ID. If not supplied, resolved from JWT context.
+          example: 1
+        kebutuhan:
+          type: string
+          description: Narrative description of user's needs.
+          example: "Laptop untuk desain grafis ringan dan tugas kampus"
+        budgetMin:
+          type: integer
+          description: Minimum price constraint in real currency (e.g. Rupiah, NOT a 1-5 scale).
+          example: 3000000
+        budgetMax:
+          type: integer
+          description: Maximum price constraint in real currency (e.g. Rupiah, NOT a 1-5 scale).
+          example: 10000000
+        userLat:
+          type: number
+          format: float
+          description: Optional. Latitude coordinates of the user. Fallback to customer profile's latitude if omitted.
+          example: -6.9825
+        userLng:
+          type: number
+          format: float
+          description: Optional. Longitude coordinates of the user. Fallback to customer profile's longitude if omitted.
+          example: 110.4284
+        weights:
+          type: array
+          description: Custom weights mapping directly to Criteria IDs.
+          items:
+            $ref: '#/components/schemas/WeightInput'
+    
+    WeightInput:
+      type: object
+      required:
+        - criteriaId
+        - weight
+      properties:
+        criteriaId:
+          type: integer
+          description: Direct mapping to the Criteria ID (e.g. 1 = Harga, 2 = RAM, 3 = Storage, 4 = Battery, 5 = Berat).
+          example: 1
+        weight:
+          type: number
+          format: float
+          description: Relative importance weight (value between 0.0 and 1.0).
+          example: 0.30
+
+    RecommendationSuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Recommendation calculated successfully."
+        data:
+          $ref: '#/components/schemas/RecommendationRequestData'
+
+    RecommendationRequestData:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: The recommendation request ID (`req_id`).
+          example: 101
+        customerId:
+          type: integer
+          example: 1
+        kebutuhan:
+          type: string
+          example: "Laptop untuk desain grafis ringan dan tugas kampus"
+        budgetMin:
+          type: integer
+          description: Minimum price constraint in real currency.
+          example: 3000000
+        budgetMax:
+          type: integer
+          description: Maximum price constraint in real currency.
+          example: 10000000
+        status:
+          type: string
+          example: "SUCCESS"
+        userLat:
+          type: string
+          example: "-6.98250000"
+        userLng:
+          type: string
+          example: "110.42840000"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-07-11T02:45:00.000Z"
+        recommendationWeights:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecommendationWeight'
+        recommendationResults:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecommendationResult'
+
+    RecommendationWeight:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 201
+        requestId:
+          type: integer
+          example: 101
+        criteriaId:
+          type: integer
+          example: 1
+        weight:
+          type: string
+          example: "0.3000"
+        criteria:
+          $ref: '#/components/schemas/CriteriaInfo'
+
+    CriteriaInfo:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        code:
+          type: string
+          example: "C1"
+        name:
+          type: string
+          example: "Harga"
+        type:
+          type: string
+          example: "cost"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-07-07T02:00:00.000Z"
+
+    RecommendationResult:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 501
+        requestId:
+          type: integer
+          example: 101
+        productStoreId:
+          type: integer
+          description: The product store inventory ID (`product_store_id`).
+          example: 12
+        methodUsed:
+          type: string
+          description: Method used for calculations (`SAW`, `WP`, or `TOPSIS`).
+          example: "TOPSIS"
+        score:
+          type: string
+          description: Calculated decimal score.
+          example: "0.892400"
+        ranking:
+          type: integer
+          description: Ordinal ranking from 1 to 10.
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-07-11T02:45:00.000Z"
+        productStore:
+          $ref: '#/components/schemas/ProductStoreDetails'
+
+    ProductStoreDetails:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 12
+        productId:
+          type: integer
+          example: 3
+        storeId:
+          type: integer
+          example: 1
+        price:
+          type: integer
+          description: Price of the product in the store (real currency).
+          example: 8500000
+        stock:
+          type: integer
+          example: 5
+        isAvailable:
+          type: integer
+          example: 1
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2026-07-07T02:30:00.000Z"
+        distanceInKm:
+          type: number
+          format: float
+          nullable: true
+          example: 5.43
+        product:
+          $ref: '#/components/schemas/ProductDetails'
+        store:
+          $ref: '#/components/schemas/StoreDetails'
+
+    ProductDetails:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 3
+        brandId:
+          type: integer
+          example: 1
+        modelName:
+          type: string
+          example: "VivoBook 14"
+        screenSize:
+          type: string
+          example: "14.0"
+        processor:
+          type: string
+          example: "Intel Core i5"
+        ram:
+          type: string
+          example: "8GB"
+        storage:
+          type: string
+          example: "512GB"
+        battery:
+          type: string
+          example: "42Wh"
+        weight:
+          type: string
+          example: "1.4"
+        releaseYear:
+          type: string
+          example: "2023"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-07-07T02:00:00.000Z"
+        brand:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            name:
+              type: string
+              example: "ASUS"
+
+    StoreDetails:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "Laptop Zone"
+        address:
+          type: string
+          example: "123 Tech Street"
+        city:
+          type: string
+          example: "Jakarta"
+        latitude:
+          type: string
+          example: "-6.20880000"
+        longitude:
+          type: string
+          example: "106.84560000"
+        phone:
+          type: string
+          example: "081234567890"
+        isActive:
+          type: integer
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-07-07T02:00:00.000Z"
+        distanceInKm:
+          type: number
+          format: float
+          nullable: true
+          example: 5.43
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Error description text."

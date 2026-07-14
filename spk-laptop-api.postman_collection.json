@@ -1,0 +1,916 @@
+{
+  "info": {
+    "_postman_id": "spk-laptop-api-collection-id-2026",
+    "name": "SPK Laptop Recommendation API",
+    "description": "API Collection for Laptop Recommendation Aggregator System (SPK) with JWT Auth and Multi-Criteria Decision Making (SAW, WP, TOPSIS).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Authentication",
+      "description": "Endpoints for authentication (Staff Login, Customer Register, and Customer Login). Automatically saves JWT tokens.",
+      "item": [
+        {
+          "name": "Staff Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.token) {",
+                  "    pm.collectionVariables.set(\"token\", jsonData.data.token);",
+                  "    console.log(\"Staff token auto-saved: \" + jsonData.data.token.substring(0, 15) + \"...\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@store.com\",\n  \"password\": \"securepassword123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/shared/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shared",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login endpoint for staff members (Superadmin or Store Admin)."
+          },
+          "response": []
+        },
+        {
+          "name": "Customer Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.token) {",
+                  "    pm.collectionVariables.set(\"token\", jsonData.data.token);",
+                  "    console.log(\"Customer token auto-saved from Register: \" + jsonData.data.token.substring(0, 15) + \"...\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Customer\",\n  \"email\": \"jane@customer.com\",\n  \"password\": \"customerpassword123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/customer/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customer",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Registers a new customer account."
+          },
+          "response": []
+        },
+        {
+          "name": "Customer Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.token) {",
+                  "    pm.collectionVariables.set(\"token\", jsonData.data.token);",
+                  "    console.log(\"Customer token auto-saved from Login: \" + jsonData.data.token.substring(0, 15) + \"...\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"jane@customer.com\",\n  \"password\": \"customerpassword123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/customer/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customer",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticates customer and issues JWT."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Superadmin",
+      "description": "Superadmin role endpoints. Access is isolated using JWT from staff login where role is 'superadmin'.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Brands",
+          "item": [
+            {
+              "name": "Get All Brands",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/brands",
+                "description": "Retrieves all brands registered in the system."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Brand by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/brands/1",
+                "description": "Retrieves a specific brand by its ID."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Brand",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"ASUS\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/superadmin/brands",
+                "description": "Registers a new laptop brand. Name must be unique and <= 20 chars."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Brand",
+              "request": {
+                "method": "PUT",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"ASUS ROG\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/superadmin/brands/1",
+                "description": "Updates the name of an existing brand."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Brand",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{baseUrl}} /api/superadmin/brands/1",
+                "description": "Deletes an existing brand."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Stores",
+          "item": [
+            {
+              "name": "Get All Stores",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/stores",
+                "description": "Retrieves all retail stores registered."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Store by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/stores/1",
+                "description": "Retrieves store by its ID."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Store",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Laptop Zone\",\n  \"address\": \"123 Tech Street\",\n  \"city\": \"Jakarta\",\n  \"phone\": \"081234567890\",\n  \"isActive\": 1,\n  \"latitude\": -6.1754,\n  \"longitude\": 106.8272\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/superadmin/stores",
+                "description": "Adds a new retail store."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Store",
+              "request": {
+                "method": "PUT",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Laptop Zone Pro\",\n  \"address\": \"123 Tech Street Suite A\",\n  \"city\": \"Jakarta\",\n  \"phone\": \"081234567891\",\n  \"isActive\": 1,\n  \"latitude\": -6.1755,\n  \"longitude\": 106.8273\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/superadmin/stores/1",
+                "description": "Updates store details."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Store",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/stores/1",
+                "description": "Deletes store from system."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Users (Staff)",
+          "item": [
+            {
+              "name": "Get All Users",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/users",
+                "description": "Retrieves all staff users."
+              },
+              "response": []
+            },
+            {
+              "name": "Get User by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/users/1",
+                "description": "Retrieves a staff user details by ID."
+              },
+              "response": []
+            },
+            {
+              "name": "Create User",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"storeId\": 1,\n  \"name\": \"Staff Budi\",\n  \"email\": \"budi@store.com\",\n  \"password\": \"storepassword123\",\n  \"role\": \"admin\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/superadmin/users",
+                "description": "Creates a new staff user (e.g. Store Admin)."
+              },
+              "response": []
+            },
+            {
+              "name": "Update User",
+              "request": {
+                "method": "PUT",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Staff Budi Updated\",\n  \"password\": \"newpassword456\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/superadmin/users/1",
+                "description": "Updates user details."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete User",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/users/1",
+                "description": "Deletes user account."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Criteria",
+          "item": [
+            {
+              "name": "Get All Criteria",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/criteria",
+                "description": "Retrieves all SPK evaluation criteria with subcriteria."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Criteria by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/criteria/1",
+                "description": "Retrieves a specific criteria detail by ID."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Criteria",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"code\": \"C1\",\n  \"name\": \"RAM\",\n  \"type\": \"benefit\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/superadmin/criteria",
+                "description": "Registers a new evaluation criteria."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Criteria",
+              "request": {
+                "method": "PUT",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"RAM Memory\",\n  \"type\": \"benefit\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/superadmin/criteria/1",
+                "description": "Updates criteria details."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Criteria",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/criteria/1",
+                "description": "Deletes criteria from database."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Sub-Criteria",
+          "item": [
+            {
+              "name": "Get Sub-Criteria by Criteria ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/sub-criteria/criteria/1",
+                "description": "Retrieves sub-criteria for a specific criteria ID."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Sub-Criteria by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/sub-criteria/1",
+                "description": "Retrieves a single sub-criteria entry."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Sub-Criteria",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"criteriaId\": 1,\n  \"description\": \"16 GB\",\n  \"valueNumeric\": 5\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/superadmin/sub-criteria",
+                "description": "Adds a sub-criteria scale value."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Sub-Criteria",
+              "request": {
+                "method": "PUT",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"16 GB (Dual Channel)\",\n  \"valueNumeric\": 5\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/superadmin/sub-criteria/1",
+                "description": "Updates subcriteria scale value."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Sub-Criteria",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/sub-criteria/1",
+                "description": "Deletes subcriteria entry."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Products (Master)",
+          "item": [
+            {
+              "name": "Get All Products",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/products",
+                "description": "Lists all master laptop products registered globally."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Product by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/products/1",
+                "description": "Retrieves details of specific master product."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Product",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"brandId\": 1,\n  \"modelName\": \"ZenBook 14\",\n  \"screenSize\": 14.0,\n  \"processor\": \"AMD Ryzen 7\",\n  \"ram\": \"16GB\",\n  \"storage\": \"512GB\",\n  \"battery\": \"67Wh\",\n  \"weight\": \"1.39\",\n  \"releaseYear\": \"2024\",\n  \"subCriteriaIds\": [1, 5, 8]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/superadmin/products",
+                "description": "Creates global master product and maps its criteria."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Product",
+              "request": {
+                "method": "PUT",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"modelName\": \"ZenBook 14 OLED\",\n  \"subCriteriaIds\": [1, 5, 9]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/superadmin/products/1",
+                "description": "Updates master product specifications."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Product",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{baseUrl}}/api/superadmin/products/1",
+                "description": "Deletes master product cascades."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Store Admin (Admin)",
+      "description": "Store Admin role endpoints. Access is isolated using JWT from staff login where role is 'admin'. Only manages local store database.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Inventory",
+          "item": [
+            {
+              "name": "Get Global Products",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/admin/inventory/global-products",
+                "description": "Reads global master products to find what is available to stock."
+              },
+              "response": []
+            },
+            {
+              "name": "Get My Store Inventory",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/admin/inventory/my-store",
+                "description": "Fetches current store inventory list."
+              },
+              "response": []
+            },
+            {
+              "name": "Add Product to Inventory",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"productId\": 1,\n  \"price\": 14500000,\n  \"stock\": 8,\n  \"isAvailable\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/admin/inventory/add",
+                "description": "Add a global product to store inventory."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Inventory Item",
+              "request": {
+                "method": "PUT",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"price\": 14200000,\n  \"stock\": 6,\n  \"isAvailable\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/admin/inventory/1",
+                "description": "Updates price, stock, or availability."
+              },
+              "response": []
+            },
+            {
+              "name": "Remove Inventory Item",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{baseUrl}}/api/admin/inventory/1",
+                "description": "Removes product from store inventory."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Store Profile",
+          "item": [
+            {
+              "name": "Get Store Profile",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/admin/store-profile",
+                "description": "Retrieves the info of current admin's store."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Store Profile",
+              "request": {
+                "method": "PUT",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Laptop Zone Superstore\",\n  \"address\": \"123 Tech Street B1\",\n  \"city\": \"Jakarta\",\n  \"phone\": \"081234567899\",\n  \"latitude\": -6.1754,\n  \"longitude\": 106.8272\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/admin/store-profile",
+                "description": "Updates store address, phone or coordinates."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Reports",
+          "item": [
+            {
+              "name": "Get Store Summary Report",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/admin/reports/summary",
+                "description": "Fetch performance summary reports of the store."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Customer",
+      "description": "Endpoints for Customer browsing catalog and using SPK Recommendation system.",
+      "item": [
+        {
+          "name": "Catalog (Public)",
+          "item": [
+            {
+              "name": "Get Catalog List",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/customer/catalog?brandId=1&search=ryzen&userLat=-6.1754&userLng=106.8272",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "customer",
+                    "catalog"
+                  ],
+                  "query": [
+                    {
+                      "key": "brandId",
+                      "value": "1",
+                      "description": "Filter by brand id"
+                    },
+                    {
+                      "key": "search",
+                      "value": "ryzen",
+                      "description": "Search keyword"
+                    },
+                    {
+                      "key": "userLat",
+                      "value": "-6.1754",
+                      "description": "User's latitude for distance calculation"
+                    },
+                    {
+                      "key": "userLng",
+                      "value": "106.8272",
+                      "description": "User's longitude for distance calculation"
+                    }
+                  ]
+                },
+                "description": "Public route to browse laptop model details, prices and stores."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Catalog Item Detail",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/customer/catalog/1",
+                "description": "Public route to fetch specific laptop specification details."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Profile (Auth Required)",
+          "auth": {
+            "type": "bearer",
+            "bearer": [
+              {
+                "key": "token",
+                "value": "{{token}}",
+                "type": "string"
+              }
+            ]
+          },
+          "item": [
+            {
+              "name": "Get Customer Profile",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/customer/profile",
+                "description": "Gets logged-in customer's details."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Customer Profile",
+              "request": {
+                "method": "PUT",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Jane Customer Updated\",\n  \"email\": \"jane_new@customer.com\",\n  \"password\": \"mynewpassword789\",\n  \"latitude\": -6.1754,\n  \"longitude\": 106.8272\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/customer/profile",
+                "description": "Updates customer profile coordinates and info."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "SPK Recommendations (Auth Required)",
+          "auth": {
+            "type": "bearer",
+            "bearer": [
+              {
+                "key": "token",
+                "value": "{{token}}",
+                "type": "string"
+              }
+            ]
+          },
+          "item": [
+            {
+              "name": "Submit SPK Recommendation Request",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"kebutuhan\": \"Gaming & Coding\",\n  \"budgetMin\": 10000000,\n  \"budgetMax\": 20000000,\n  \"weights\": [\n    { \"subCriteriaId\": 1, \"weight\": 0.40 },\n    { \"subCriteriaId\": 5, \"weight\": 0.35 },\n    { \"subCriteriaId\": 8, \"weight\": 0.25 }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{baseUrl}}/api/customer/spk/requests",
+                "description": "Submits budget requirements and weight parameters. Calculations will process SAW, WP, and TOPSIS."
+              },
+              "response": []
+            },
+            {
+              "name": "Get SPK Request History",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/customer/spk/requests",
+                "description": "Retrieve all recommendation requests submitted by customer."
+              },
+              "response": []
+            },
+            {
+              "name": "Get SPK Request Details",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/customer/spk/requests/1",
+                "description": "Gets details of recommendation result showing rankings across all 3 methods."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
