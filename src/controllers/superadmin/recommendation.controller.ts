@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../../middlewares/auth';
 import { recommendationRequestRepository } from '../../repositories/recommendationRequest.repository';
+import { spkRequestService } from '../../services/spkRequest.service';
 
 export class RecommendationController {
   async getAll(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -35,6 +36,8 @@ export class RecommendationController {
           return res.status(403).json({ success: false, message: 'Forbidden: Access to this recommendation request is restricted to your store.' });
         }
       }
+
+      detail.calculationDetails = await spkRequestService.fetchCalculationDetails(id);
 
       res.status(200).json({ success: true, data: detail });
     } catch (error) {

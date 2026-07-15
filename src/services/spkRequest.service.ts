@@ -217,7 +217,7 @@ export class SpkRequestService {
     return obj;
   }
 
-  private async fetchCalculationDetails(requestId: number) {
+  async fetchCalculationDetails(requestId: number) {
     const rawMatrix = await prisma.$queryRaw`SELECT * FROM v_matriks WHERE id_recommendation_request = ${requestId}`;
     const sawDetails = await prisma.$queryRaw`SELECT * FROM v_saw WHERE id_recommendation_request = ${requestId}`;
     const wpDetails = await prisma.$queryRaw`SELECT * FROM v_wp WHERE id_recommendation_request = ${requestId}`;
