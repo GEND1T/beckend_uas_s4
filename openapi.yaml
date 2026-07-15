@@ -564,178 +564,63 @@ components:
     CalculationDetails:
       type: object
       properties:
-        rawMatrix:
-          type: array
-          items:
-            type: object
-            properties:
-              id_recommendation_request:
-                type: integer
-                example: 8
-              customers_id_customer:
-                type: integer
-                example: 1
-              id_produk:
-                type: integer
-                example: 2
-              nama_laptop:
-                type: string
-                example: "Inspiron 14 5430"
-              nilai_c1:
-                type: number
-                example: 4491000
-              bobot_c1:
-                type: number
-                example: 0.25
-              nilai_c2:
-                type: number
-                example: 3
-              bobot_c2:
-                type: number
-                example: 0.2
-              nilai_c3:
-                type: number
-                example: 2
-              bobot_c3:
-                type: number
-                example: 0.2
-              nilai_c4:
-                type: number
-                example: 2
-              bobot_c4:
-                type: number
-                example: 0.1
-              nilai_c5:
-                type: number
-                example: 3
-              bobot_c5:
-                type: number
-                example: 0.05
-              nilai_c6:
-                type: number
-                example: 3
-              bobot_c6:
-                type: number
-                example: 0.1
-              nilai_c7:
-                type: number
-                example: 3
-              bobot_c7:
-                type: number
-                example: 0.05
-              nilai_c8:
-                type: number
-                example: 4
-              bobot_c8:
-                type: number
-                example: 0.05
-        sawDetails:
-          type: array
-          items:
-            type: object
-            properties:
-              id_recommendation_request:
-                type: integer
-                example: 8
-              id_produk:
-                type: integer
-                example: 58
-              nama_laptop:
-                type: string
-                example: "Sword 16 HX"
-              norm_c1:
-                type: number
-                example: 0.6023
-              norm_c2:
-                type: number
-                example: 0.6
-              norm_c3:
-                type: number
-                example: 0.75
-              norm_c4:
-                type: number
-                example: 0.6
-              norm_c5:
-                type: number
-                example: 0.5
-              norm_c6:
-                type: number
-                example: 0.8
-              norm_c7:
-                type: number
-                example: 0.8
-              norm_c8:
-                type: number
-                example: 1
-              skor_akhir_saw:
-                type: number
-                example: 0.67558611
-        wpDetails:
-          type: array
-          items:
-            type: object
-            properties:
-              id_recommendation_request:
-                type: integer
-                example: 8
-              id_produk:
-                type: integer
-                example: 90
-              nama_laptop:
-                type: string
-                example: "Surface Laptop Studio 2"
-              skor_s:
-                type: number
-                example: 0.03572652
-              skor_akhir_wp:
-                type: number
-                example: 0.00075931
-        topsisPembagi:
-          type: array
-          items:
-            type: object
-            properties:
-              id_recommendation_request:
-                type: integer
-                example: 8
-              bagi_c1:
-                type: number
-                example: 211660207.01
-              bagi_c2:
-                type: number
-                example: 107.48
-              bagi_c3:
-                type: number
-                example: 80.38
-              bagi_c4:
-                type: number
-                example: 100.71
-              bagi_c5:
-                type: number
-                example: 125.66
-              bagi_c6:
-                type: number
-                example: 130.48
-              bagi_c7:
-                type: number
-                example: 120.82
-              bagi_c8:
-                type: number
-                example: 136.76
-        topsisDetails:
-          type: array
-          items:
-            type: object
-            properties:
-              id_recommendation_request:
-                type: integer
-                example: 8
-              id_produk:
-                type: integer
-                example: 2
-              nama_laptop:
-                type: string
-                example: "Inspiron 14 5430"
-              skor_akhir_topsis:
-                type: number
-                example: 0.47736129
+        saw:
+          type: object
+          properties:
+            min_c1:
+              type: number
+              example: 4491000
+            max_c2:
+              type: number
+              example: 5
+            max_c3:
+              type: number
+              example: 5
+            max_c4:
+              type: number
+              example: 5
+            min_c5:
+              type: number
+              example: 1.2
+            max_c6:
+              type: number
+              example: 5
+            max_c7:
+              type: number
+              example: 5
+            max_c8:
+              type: number
+              example: 5
+        wp:
+          type: object
+          properties:
+            total_s:
+              type: number
+              example: 25.4321
+        topsis:
+          type: object
+          properties:
+            bagi_c1:
+              type: number
+              example: 211660207.01
+            bagi_c2:
+              type: number
+              example: 107.48
+            bagi_c3:
+              type: number
+              example: 80.38
+            bagi_c4:
+              type: number
+              example: 100.71
+            bagi_c5:
+              type: number
+              example: 125.66
+            bagi_c6:
+              type: number
+              example: 130.48
+            bagi_c7:
+              type: number
+              example: 120.82
+            bagi_c8:
+              type: number
+              example: 136.76

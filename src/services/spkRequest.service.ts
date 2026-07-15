@@ -218,18 +218,41 @@ export class SpkRequestService {
   }
 
   async fetchCalculationDetails(requestId: number) {
-    const rawMatrix = await prisma.$queryRaw`SELECT * FROM v_matriks WHERE id_recommendation_request = ${requestId}`;
-    const sawDetails = await prisma.$queryRaw`SELECT * FROM v_saw WHERE id_recommendation_request = ${requestId}`;
-    const wpDetails = await prisma.$queryRaw`SELECT * FROM v_wp WHERE id_recommendation_request = ${requestId}`;
-    const topsisPembagi = await prisma.$queryRaw`SELECT * FROM v_topsis_pembagi WHERE id_recommendation_request = ${requestId}`;
-    const topsisDetails = await prisma.$queryRaw`SELECT * FROM v_topsis_akhir WHERE id_recommendation_request = ${requestId}`;
+    const sawAggregates = await prisma.$queryRaw<any[]>`
+      SELECT 
+        MIN(nilai_c1) as min_c1, 
+        MAX(nilai_c2) as max_c2, 
+        MAX(nilai_c3) as max_c3, 
+        MAX(nilai_c4) as max_c4, 
+        MIN(nilai_c5) as min_c5, 
+        MAX(nilai_c6) as max_c6, 
+        MAX(nilai_c7) as max_c7, 
+        MAX(nilai_c8) as max_c8
+      FROM v_matriks 
+      WHERE id_recommendation_request = ${requestId}
+    `;
+    const saw = sawAggregates[0] || null;
+
+    const wpAggregates = await prisma.$queryRaw<any[]>`
+      SELECT SUM(skor_s) as total_s 
+      FROM v_wp 
+      WHERE id_recommendation_request = ${requestId}
+    `;
+    const wp = wpAggregates[0] || null;
+
+    const topsisPembagi = await prisma.$queryRaw<any[]>`
+      SELECT 
+        bagi_c1, bagi_c2, bagi_c3, bagi_c4, 
+        bagi_c5, bagi_c6, bagi_c7, bagi_c8
+      FROM v_topsis_pembagi 
+      WHERE id_recommendation_request = ${requestId}
+    `;
+    const topsis = topsisPembagi[0] || null;
 
     return this.sanitizeBigInt({
-      rawMatrix,
-      sawDetails,
-      wpDetails,
-      topsisPembagi,
-      topsisDetails
+      saw,
+      wp,
+      topsis
     });
   }
 }
