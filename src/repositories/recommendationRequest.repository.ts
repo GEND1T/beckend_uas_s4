@@ -126,8 +126,19 @@ export class RecommendationRequestRepository {
   }
 
   async delete(id: number): Promise<any> {
-    return prisma.recommendationRequest.delete({
-      where: { id }
+    return prisma.$transaction(async (tx) => {
+      // Delete dependent weights first
+      await tx.recommendationWeight.deleteMany({
+        where: { requestId: id }
+      });
+      // Delete dependent results
+      await tx.recommendationResult.deleteMany({
+        where: { requestId: id }
+      });
+      // Delete the request itself
+      return tx.recommendationRequest.delete({
+        where: { id }
+      });
     });
   }
 }
