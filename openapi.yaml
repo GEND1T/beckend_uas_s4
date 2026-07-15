@@ -13,6 +13,9 @@ info:
       - `3`: Storage - Benefit
       - `4`: Battery - Benefit
       - `5`: Berat (Weight) - Cost
+      - `6`: Processor - Benefit
+      - `7`: Ukuran Layar (Screen Size) - Benefit
+      - `8`: Tahun Rilis (Release Year) - Benefit
     - **Calculation Execution:** A single atomic transaction generates Top 10 results for SAW, WP, and TOPSIS simultaneously.
   version: 1.0.0
 servers:
@@ -135,14 +138,20 @@ paths:
               userLng: 110.4284
               weights:
                 - criteriaId: 1
-                  weight: 0.30
-                - criteriaId: 2
-                  weight: 0.25
-                - criteriaId: 3
                   weight: 0.20
-                - criteriaId: 4
+                - criteriaId: 2
                   weight: 0.15
+                - criteriaId: 3
+                  weight: 0.15
+                - criteriaId: 4
+                  weight: 0.10
                 - criteriaId: 5
+                  weight: 0.10
+                - criteriaId: 6
+                  weight: 0.15
+                - criteriaId: 7
+                  weight: 0.05
+                - criteriaId: 8
                   weight: 0.10
       responses:
         '201':
@@ -283,7 +292,7 @@ components:
       properties:
         criteriaId:
           type: integer
-          description: Direct mapping to the Criteria ID (e.g. 1 = Harga, 2 = RAM, 3 = Storage, 4 = Battery, 5 = Berat).
+          description: Direct mapping to the Criteria ID (e.g. 1 = Harga, 2 = RAM, 3 = Storage, 4 = Battery, 5 = Berat, 6 = Processor, 7 = Ukuran Layar, 8 = Tahun Rilis).
           example: 1
         weight:
           type: number

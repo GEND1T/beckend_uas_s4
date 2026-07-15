@@ -1114,8 +1114,8 @@ Endpoints for register, catalog browsing, profile editing, and SPK recommendatio
     - `userLat` (Float/Decimal, Optional): Latitude of the customer's location for distance calculations. If not provided, fallback to the profile coordinates.
     - `userLng` (Float/Decimal, Optional): Longitude of the customer's location for distance calculations. If not provided, fallback to the profile coordinates.
     - `weights` (Array of Objects, Required): Criteria weights mapping. Weights map directly to main criteria IDs:
-      - `criteriaId` (Integer, Required): The main Criteria ID (e.g., `1` for Harga, `2` for RAM, `3` for Storage, `4` for Battery, `5` for Berat).
-      - `weight` (Float/Decimal, Required): Weight value for the corresponding criteria (e.g. `0.30`).
+      - `criteriaId` (Integer, Required): The main Criteria ID (e.g., `1` for Harga, `2` for RAM, `3` for Storage, `4` for Battery, `5` for Berat, `6` for Processor, `7` for Ukuran Layar, `8` for Tahun Rilis).
+      - `weight` (Float/Decimal, Required): Weight value for the corresponding criteria (e.g. `0.20`).
   - **Example:**
   ```json
   {
@@ -1126,11 +1126,14 @@ Endpoints for register, catalog browsing, profile editing, and SPK recommendatio
     "userLat": -6.9825,
     "userLng": 110.4284,
     "weights": [
-      { "criteriaId": 1, "weight": 0.30 },
-      { "criteriaId": 2, "weight": 0.25 },
-      { "criteriaId": 3, "weight": 0.20 },
-      { "criteriaId": 4, "weight": 0.15 },
-      { "criteriaId": 5, "weight": 0.10 }
+      { "criteriaId": 1, "weight": 0.20 },
+      { "criteriaId": 2, "weight": 0.15 },
+      { "criteriaId": 3, "weight": 0.15 },
+      { "criteriaId": 4, "weight": 0.10 },
+      { "criteriaId": 5, "weight": 0.10 },
+      { "criteriaId": 6, "weight": 0.15 },
+      { "criteriaId": 7, "weight": 0.05 },
+      { "criteriaId": 8, "weight": 0.10 }
     ]
   }
   ```
@@ -1166,7 +1169,7 @@ Endpoints for register, catalog browsing, profile editing, and SPK recommendatio
           "id": 201,
           "requestId": 101,
           "criteriaId": 1,
-          "weight": "0.3000",
+          "weight": "0.2000",
           "criteria": {
             "id": 1,
             "code": "C1",
@@ -1179,7 +1182,7 @@ Endpoints for register, catalog browsing, profile editing, and SPK recommendatio
           "id": 202,
           "requestId": 101,
           "criteriaId": 2,
-          "weight": "0.2500",
+          "weight": "0.1500",
           "criteria": {
             "id": 2,
             "code": "C2",
@@ -1192,7 +1195,7 @@ Endpoints for register, catalog browsing, profile editing, and SPK recommendatio
           "id": 203,
           "requestId": 101,
           "criteriaId": 3,
-          "weight": "0.2000",
+          "weight": "0.1500",
           "criteria": {
             "id": 3,
             "code": "C3",
@@ -1205,7 +1208,7 @@ Endpoints for register, catalog browsing, profile editing, and SPK recommendatio
           "id": 204,
           "requestId": 101,
           "criteriaId": 4,
-          "weight": "0.1500",
+          "weight": "0.1000",
           "criteria": {
             "id": 4,
             "code": "C4",
@@ -1224,6 +1227,45 @@ Endpoints for register, catalog browsing, profile editing, and SPK recommendatio
             "code": "C5",
             "name": "Berat",
             "type": "cost",
+            "createdAt": "2026-07-07T02:00:00.000Z"
+          }
+        },
+        {
+          "id": 206,
+          "requestId": 101,
+          "criteriaId": 6,
+          "weight": "0.1500",
+          "criteria": {
+            "id": 6,
+            "code": "C6",
+            "name": "Processor",
+            "type": "benefit",
+            "createdAt": "2026-07-07T02:00:00.000Z"
+          }
+        },
+        {
+          "id": 207,
+          "requestId": 101,
+          "criteriaId": 7,
+          "weight": "0.0500",
+          "criteria": {
+            "id": 7,
+            "code": "C7",
+            "name": "Ukuran Layar",
+            "type": "benefit",
+            "createdAt": "2026-07-07T02:00:00.000Z"
+          }
+        },
+        {
+          "id": 208,
+          "requestId": 101,
+          "criteriaId": 8,
+          "weight": "0.1000",
+          "criteria": {
+            "id": 8,
+            "code": "C8",
+            "name": "Tahun Rilis",
+            "type": "benefit",
             "createdAt": "2026-07-07T02:00:00.000Z"
           }
         }

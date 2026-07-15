@@ -34,20 +34,19 @@ export class SpkService {
 
         const req_id = req.id;
 
-        // STEP B: Insert user weights mapped directly to criteriaId (1 to 5)
-        const w1 = input.weights.find(w => w.criteriaId === 1)?.weight ?? 0;
-        const w2 = input.weights.find(w => w.criteriaId === 2)?.weight ?? 0;
-        const w3 = input.weights.find(w => w.criteriaId === 3)?.weight ?? 0;
-        const w4 = input.weights.find(w => w.criteriaId === 4)?.weight ?? 0;
-        const w5 = input.weights.find(w => w.criteriaId === 5)?.weight ?? 0;
+        // STEP B: Insert user weights mapped directly to all criteria currently in the database
+        const criteriaList = await tx.criteria.findMany({
+          select: { id: true }
+        });
 
-        const weightData = [
-          { requestId: req_id, criteriaId: 1, weight: w1 },
-          { requestId: req_id, criteriaId: 2, weight: w2 },
-          { requestId: req_id, criteriaId: 3, weight: w3 },
-          { requestId: req_id, criteriaId: 4, weight: w4 },
-          { requestId: req_id, criteriaId: 5, weight: w5 }
-        ];
+        const weightData = criteriaList.map(c => {
+          const w = input.weights.find(iw => iw.criteriaId === c.id);
+          return {
+            requestId: req_id,
+            criteriaId: c.id,
+            weight: w ? w.weight : 0.0
+          };
+        });
 
         await tx.recommendationWeight.createMany({
           data: weightData
@@ -60,10 +59,12 @@ export class SpkService {
           INSERT INTO recommendation_result (recommendation_requests_id_recommendation_request, product_store_id_product_store, method_used, score, ranking)
           WITH saw_calc AS (
               SELECT dm.product_id, dm.store_id, dm.price,
-                  SUM(saw.normalized_value * CASE saw.criteria_id WHEN 1 THEN ? WHEN 2 THEN ? WHEN 3 THEN ? WHEN 4 THEN ? WHEN 5 THEN ? ELSE 0 END) AS final_score
+                  SUM(saw.normalized_value * w.weight) AS final_score
               FROM v_saw_normalized_matrix saw
               JOIN v_decision_matrix dm ON saw.product_id = dm.product_id AND saw.store_id = dm.store_id AND saw.criteria_id = dm.criteria_id
-              WHERE dm.price BETWEEN ? AND ?
+              JOIN recommendation_weight w ON w.criteria_id_criteria = saw.criteria_id
+              WHERE w.recommendation_requests_id_recommendation_request = ?
+                AND dm.price BETWEEN ? AND ?
               GROUP BY dm.product_id, dm.store_id, dm.price
           ),
           best_product_scores AS (
@@ -84,10 +85,12 @@ export class SpkService {
         const wpQuery = `
           INSERT INTO recommendation_result (recommendation_requests_id_recommendation_request, product_store_id_product_store, method_used, score, ranking)
           WITH wp_step1 AS (
-              SELECT product_id, store_id, raw_value, price,
-                  CASE WHEN criteria_type = 'cost' THEN CASE criteria_id WHEN 1 THEN -? WHEN 2 THEN -? WHEN 3 THEN -? WHEN 4 THEN -? WHEN 5 THEN -? ELSE 0 END
-                  ELSE CASE criteria_id WHEN 1 THEN ? WHEN 2 THEN ? WHEN 3 THEN ? WHEN 4 THEN ? WHEN 5 THEN ? ELSE 0 END END AS weight_power
-              FROM v_decision_matrix WHERE price BETWEEN ? AND ?
+              SELECT dm.product_id, dm.store_id, dm.raw_value, dm.price,
+                  (CASE WHEN dm.criteria_type = 'cost' THEN -w.weight ELSE w.weight END) AS weight_power
+              FROM v_decision_matrix dm
+              JOIN recommendation_weight w ON w.criteria_id_criteria = dm.criteria_id
+              WHERE w.recommendation_requests_id_recommendation_request = ?
+                AND dm.price BETWEEN ? AND ?
           ),
           wp_calc AS (
               SELECT product_id, store_id, price, EXP(SUM(LOG(POW(raw_value, weight_power)))) AS final_score
@@ -112,10 +115,12 @@ export class SpkService {
           INSERT INTO recommendation_result (recommendation_requests_id_recommendation_request, product_store_id_product_store, method_used, score, ranking)
           WITH t_step1 AS (
               SELECT tn.product_id, tn.store_id, tn.criteria_id, tn.criteria_type, dm.price,
-                  tn.normalized_value * CASE tn.criteria_id WHEN 1 THEN ? WHEN 2 THEN ? WHEN 3 THEN ? WHEN 4 THEN ? WHEN 5 THEN ? ELSE 0 END AS weighted_value
+                  (tn.normalized_value * w.weight) AS weighted_value
               FROM v_topsis_normalisasi tn
               JOIN v_decision_matrix dm ON tn.product_id = dm.product_id AND tn.store_id = dm.store_id AND tn.criteria_id = dm.criteria_id
-              WHERE dm.price BETWEEN ? AND ?
+              JOIN recommendation_weight w ON w.criteria_id_criteria = tn.criteria_id
+              WHERE w.recommendation_requests_id_recommendation_request = ?
+                AND dm.price BETWEEN ? AND ?
           ),
           t_ideal AS (
               SELECT criteria_id,
@@ -148,9 +153,9 @@ export class SpkService {
         `;
 
         // Execute 3 INSERT queries using tx.$executeRawUnsafe
-        await tx.$executeRawUnsafe(sawQuery, w1, w2, w3, w4, w5, input.budgetMin, input.budgetMax, req_id);
-        await tx.$executeRawUnsafe(wpQuery, w1, w2, w3, w4, w5, w1, w2, w3, w4, w5, input.budgetMin, input.budgetMax, req_id);
-        await tx.$executeRawUnsafe(topsisQuery, w1, w2, w3, w4, w5, input.budgetMin, input.budgetMax, req_id);
+        await tx.$executeRawUnsafe(sawQuery, req_id, input.budgetMin, input.budgetMax, req_id);
+        await tx.$executeRawUnsafe(wpQuery, req_id, input.budgetMin, input.budgetMax, req_id);
+        await tx.$executeRawUnsafe(topsisQuery, req_id, input.budgetMin, input.budgetMax, req_id);
 
         // Update status to SUCCESS
         const updatedReq = await tx.recommendationRequest.update({
