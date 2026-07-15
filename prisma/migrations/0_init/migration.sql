@@ -230,55 +230,128 @@ JOIN sub_criteria sc ON pc.sub_criteria_id_sub_criteria = sc.id_sub_criteria
 JOIN criteria c ON sc.criteria_id_criteria = c.id_criteria;
 
 
--- 2. VIEW CRITERIA MINMAX (Untuk mencari nilai Max/Min SAW)
-CREATE OR REPLACE VIEW v_criteria_minmax AS
+CREATE OR REPLACE VIEW v_matriks AS
 SELECT 
-    criteria_id,
-    criteria_type,
-    MAX(raw_value) AS max_value,
-    MIN(raw_value) AS min_value
-FROM v_decision_matrix
-GROUP BY criteria_id, criteria_type;
+    req.id_recommendation_request,
+    req.customers_id_customer,
+    ps.products_id_product AS id_produk,
+    p.model_name AS nama_laptop,
+    -- C1: Harga (Cost)
+    ps.price AS harga_c1,
+    MAX(CASE WHEN rw.criteria_id_criteria = 1 THEN rw.weight ELSE 0 END) AS bobot_c1,
+    -- C2: RAM (Benefit)
+    MAX(CASE WHEN sc.criteria_id_criteria = 2 THEN sc.value_numeric ELSE 0 END) AS ram_c2,
+    MAX(CASE WHEN rw.criteria_id_criteria = 2 THEN rw.weight ELSE 0 END) AS bobot_c2,
+    -- C3: Storage (Benefit)
+    MAX(CASE WHEN sc.criteria_id_criteria = 3 THEN sc.value_numeric ELSE 0 END) AS storage_c3,
+    MAX(CASE WHEN rw.criteria_id_criteria = 3 THEN rw.weight ELSE 0 END) AS bobot_c3,
+    -- C4: Battery (Benefit)
+    MAX(CASE WHEN sc.criteria_id_criteria = 4 THEN sc.value_numeric ELSE 0 END) AS battery_c4,
+    MAX(CASE WHEN rw.criteria_id_criteria = 4 THEN rw.weight ELSE 0 END) AS bobot_c4,
+    -- C5: Berat (Cost)
+    MAX(CASE WHEN sc.criteria_id_criteria = 5 THEN sc.value_numeric ELSE 0 END) AS weight_c5,
+    MAX(CASE WHEN rw.criteria_id_criteria = 5 THEN rw.weight ELSE 0 END) AS bobot_c5
+FROM recommendation_requests req
+JOIN product_store ps ON ps.price BETWEEN req.budget_min AND req.budget_max
+JOIN products p ON ps.products_id_product = p.id_product
+JOIN product_criteria pc ON p.id_product = pc.products_id_product
+JOIN sub_criteria sc ON pc.sub_criteria_id_sub_criteria = sc.id_sub_criteria
+JOIN recommendation_weight rw ON req.id_recommendation_request = rw.recommendation_requests_id_recommendation_request
+GROUP BY req.id_recommendation_request, req.customers_id_customer, ps.products_id_product, p.model_name, ps.price;
 
-
--- 3. VIEW SAW NORMALIZED MATRIX (Normalisasi Benefit & Cost SAW)
-CREATE OR REPLACE VIEW v_saw_normalized_matrix AS
+CREATE OR REPLACE VIEW v_saw AS
 SELECT 
-    dm.product_id,
-    dm.store_id,
-    dm.criteria_id,
-    dm.criteria_code,
-    dm.criteria_type,
-    dm.raw_value,
-    dm.price,
-    CASE 
-        WHEN dm.criteria_type = 'benefit' THEN (dm.raw_value / mm.max_value)
-        WHEN dm.criteria_type = 'cost' THEN (mm.min_value / dm.raw_value)
-        ELSE 0 
-    END AS normalized_value
-FROM v_decision_matrix dm
-JOIN v_criteria_minmax mm ON dm.criteria_id = mm.criteria_id;
+    id_recommendation_request, 
+    id_produk, 
+    nama_laptop,
+    -- Penjabaran Normalisasi
+    (MIN(harga_c1) OVER(PARTITION BY id_recommendation_request) / harga_c1) AS norm_c1,
+    (ram_c2 / MAX(ram_c2) OVER(PARTITION BY id_recommendation_request)) AS norm_c2,
+    (storage_c3 / MAX(storage_c3) OVER(PARTITION BY id_recommendation_request)) AS norm_c3,
+    (battery_c4 / MAX(battery_c4) OVER(PARTITION BY id_recommendation_request)) AS norm_c4,
+    (MIN(weight_c5) OVER(PARTITION BY id_recommendation_request) / weight_c5) AS norm_c5,
+    -- Hasil Akhir Vektor V (SAW)
+    (
+        ((MIN(harga_c1) OVER(PARTITION BY id_recommendation_request) / harga_c1) * bobot_c1) +
+        ((ram_c2 / MAX(ram_c2) OVER(PARTITION BY id_recommendation_request)) * bobot_c2) +
+        ((storage_c3 / MAX(storage_c3) OVER(PARTITION BY id_recommendation_request)) * bobot_c3) +
+        ((battery_c4 / MAX(battery_c4) OVER(PARTITION BY id_recommendation_request)) * bobot_c4) +
+        ((MIN(weight_c5) OVER(PARTITION BY id_recommendation_request) / weight_c5) * bobot_c5)
+    ) AS skor_akhir_saw
+FROM v_matriks;
 
 
--- 4. VIEW TOPSIS PEMBAGI (Mencari nilai akar kuadrat untuk pembagi TOPSIS)
+CREATE OR REPLACE VIEW v_wp AS
+WITH VektorS AS (
+    SELECT 
+        id_recommendation_request, 
+        id_produk, 
+        nama_laptop,
+        (
+            POW(harga_c1, -bobot_c1) *  -- Minus karena Cost
+            POW(ram_c2, bobot_c2) *     -- Positif karena Benefit
+            POW(storage_c3, bobot_c3) * 
+            POW(battery_c4, bobot_c4) * 
+            POW(weight_c5, -bobot_c5)   -- Minus karena Cost
+        ) AS skor_s
+    FROM v_matriks
+)
+SELECT 
+    id_recommendation_request, 
+    id_produk, 
+    nama_laptop, 
+    skor_s,
+    -- Skor Akhir Vektor V (WP)
+    (skor_s / SUM(skor_s) OVER(PARTITION BY id_recommendation_request)) AS skor_akhir_wp
+FROM VektorS;
+
+
 CREATE OR REPLACE VIEW v_topsis_pembagi AS
 SELECT 
-    criteria_id,
-    SQRT(SUM(POW(raw_value, 2))) AS pembagi
-FROM v_decision_matrix
-GROUP BY criteria_id;
+    id_recommendation_request,
+    SQRT(SUM(POW(harga_c1, 2))) AS bagi_c1,
+    SQRT(SUM(POW(ram_c2, 2))) AS bagi_c2,
+    SQRT(SUM(POW(storage_c3, 2))) AS bagi_c3,
+    SQRT(SUM(POW(battery_c4, 2))) AS bagi_c4,
+    SQRT(SUM(POW(weight_c5, 2))) AS bagi_c5
+FROM v_matriks
+GROUP BY id_recommendation_request;
 
 
--- 5. VIEW TOPSIS NORMALISASI (Membagi raw value dengan pembagi TOPSIS)
-CREATE OR REPLACE VIEW v_topsis_normalisasi AS
+CREATE OR REPLACE VIEW v_topsis_akhir AS
+WITH MatriksTernormalisasi AS (
+    SELECT 
+        m.id_recommendation_request, m.id_produk, m.nama_laptop,
+        (m.harga_c1 / p.bagi_c1) * m.bobot_c1 AS y_c1,
+        (m.ram_c2 / p.bagi_c2) * m.bobot_c2 AS y_c2,
+        (m.storage_c3 / p.bagi_c3) * m.bobot_c3 AS y_c3,
+        (m.battery_c4 / p.bagi_c4) * m.bobot_c4 AS y_c4,
+        (m.weight_c5 / p.bagi_c5) * m.bobot_c5 AS y_c5
+    FROM v_matriks m
+    JOIN v_topsis_pembagi p ON m.id_recommendation_request = p.id_recommendation_request
+),
+SolusiIdeal AS (
+    SELECT 
+        id_recommendation_request,
+        MIN(y_c1) AS a_pos_c1, MAX(y_c1) AS a_neg_c1, -- C1 Cost
+        MAX(y_c2) AS a_pos_c2, MIN(y_c2) AS a_neg_c2, -- C2 Benefit
+        MAX(y_c3) AS a_pos_c3, MIN(y_c3) AS a_neg_c3, -- C3 Benefit
+        MAX(y_c4) AS a_pos_c4, MIN(y_c4) AS a_neg_c4, -- C4 Benefit
+        MIN(y_c5) AS a_pos_c5, MAX(y_c5) AS a_neg_c5  -- C5 Cost
+    FROM MatriksTernormalisasi
+    GROUP BY id_recommendation_request
+),
+JarakIdeal AS (
+    SELECT 
+        t.id_recommendation_request, t.id_produk, t.nama_laptop,
+        SQRT(POW(t.y_c1 - i.a_pos_c1, 2) + POW(t.y_c2 - i.a_pos_c2, 2) + POW(t.y_c3 - i.a_pos_c3, 2) + POW(t.y_c4 - i.a_pos_c4, 2) + POW(t.y_c5 - i.a_pos_c5, 2)) AS d_pos,
+        SQRT(POW(t.y_c1 - i.a_neg_c1, 2) + POW(t.y_c2 - i.a_neg_c2, 2) + POW(t.y_c3 - i.a_neg_c3, 2) + POW(t.y_c4 - i.a_neg_c4, 2) + POW(t.y_c5 - i.a_neg_c5, 2)) AS d_neg
+    FROM MatriksTernormalisasi t
+    JOIN SolusiIdeal i ON t.id_recommendation_request = i.id_recommendation_request
+)
 SELECT 
-    dm.product_id,
-    dm.store_id,
-    dm.criteria_id,
-    dm.criteria_code,
-    dm.criteria_type,
-    dm.raw_value,
-    dm.price,
-    (dm.raw_value / tp.pembagi) AS normalized_value
-FROM v_decision_matrix dm
-JOIN v_topsis_pembagi tp ON dm.criteria_id = tp.criteria_id;
+    id_recommendation_request, 
+    id_produk, 
+    nama_laptop,
+    (d_neg / (d_pos + d_neg)) AS skor_akhir_topsis
+FROM JarakIdeal;

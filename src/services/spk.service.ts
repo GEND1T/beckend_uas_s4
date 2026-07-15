@@ -57,15 +57,43 @@ export class SpkService {
         // SQL FOR SAW
         const sawQuery = `
           INSERT INTO recommendation_result (recommendation_requests_id_recommendation_request, product_store_id_product_store, method_used, score, ranking)
-          WITH saw_calc AS (
-              SELECT dm.product_id, dm.store_id, dm.price,
-                  SUM(saw.normalized_value * w.weight) AS final_score
-              FROM v_saw_normalized_matrix saw
-              JOIN v_decision_matrix dm ON saw.product_id = dm.product_id AND saw.store_id = dm.store_id AND saw.criteria_id = dm.criteria_id
-              JOIN recommendation_weight w ON w.criteria_id_criteria = saw.criteria_id
-              WHERE w.recommendation_requests_id_recommendation_request = ?
-                AND dm.price BETWEEN ? AND ?
-              GROUP BY dm.product_id, dm.store_id, dm.price
+          WITH request_weights AS (
+              SELECT criteria_id_criteria AS criteria_id, weight
+              FROM recommendation_weight
+              WHERE recommendation_requests_id_recommendation_request = ?
+          ),
+          filtered_dm AS (
+              SELECT product_id, store_id, criteria_id, criteria_type, raw_value, price
+              FROM v_decision_matrix
+              WHERE price BETWEEN ? AND ?
+          ),
+          criteria_minmax AS (
+              SELECT 
+                  criteria_id,
+                  MAX(raw_value) AS max_value,
+                  MIN(raw_value) AS min_value
+              FROM filtered_dm
+              GROUP BY criteria_id
+          ),
+          saw_normalized AS (
+              SELECT 
+                  fdm.product_id,
+                  fdm.store_id,
+                  fdm.criteria_id,
+                  CASE 
+                      WHEN fdm.criteria_type = 'benefit' AND mm.max_value > 0 THEN (fdm.raw_value / mm.max_value)
+                      WHEN fdm.criteria_type = 'cost' AND fdm.raw_value > 0 THEN (mm.min_value / fdm.raw_value)
+                      ELSE 0 
+                  END AS normalized_value
+              FROM filtered_dm fdm
+              JOIN criteria_minmax mm ON fdm.criteria_id = mm.criteria_id
+          ),
+          saw_calc AS (
+              SELECT sn.product_id, sn.store_id,
+                  SUM(sn.normalized_value * w.weight) AS final_score
+              FROM saw_normalized sn
+              JOIN request_weights w ON w.criteria_id = sn.criteria_id
+              GROUP BY sn.product_id, sn.store_id
           ),
           best_product_scores AS (
               SELECT product_id, MAX(final_score) as best_score FROM saw_calc GROUP BY product_id
@@ -78,23 +106,53 @@ export class SpkService {
           JOIN ranked_products rp ON c.product_id = rp.product_id
           JOIN product_store ps ON c.product_id = ps.products_id_product AND c.store_id = ps.stores_id_store
           WHERE rp.product_rank <= 3
-          ORDER BY rp.product_rank ASC, c.price ASC;
+          ORDER BY rp.product_rank ASC, ps.price ASC;
         `;
 
         // SQL FOR WP
         const wpQuery = `
           INSERT INTO recommendation_result (recommendation_requests_id_recommendation_request, product_store_id_product_store, method_used, score, ranking)
-          WITH wp_step1 AS (
-              SELECT dm.product_id, dm.store_id, dm.raw_value, dm.price,
-                  (CASE WHEN dm.criteria_type = 'cost' THEN -w.weight ELSE w.weight END) AS weight_power
-              FROM v_decision_matrix dm
-              JOIN recommendation_weight w ON w.criteria_id_criteria = dm.criteria_id
-              WHERE w.recommendation_requests_id_recommendation_request = ?
-                AND dm.price BETWEEN ? AND ?
+          WITH request_weights AS (
+              SELECT criteria_id_criteria AS criteria_id, weight
+              FROM recommendation_weight
+              WHERE recommendation_requests_id_recommendation_request = ?
+          ),
+          total_weight AS (
+              SELECT SUM(weight) AS sum_w FROM request_weights
+          ),
+          normalized_weights AS (
+              SELECT rw.criteria_id,
+                  CASE WHEN tw.sum_w > 0 THEN (rw.weight / tw.sum_w) ELSE 0 END AS norm_weight
+              FROM request_weights rw
+              CROSS JOIN total_weight tw
+          ),
+          filtered_dm AS (
+              SELECT product_id, store_id, criteria_id, criteria_type, raw_value, price
+              FROM v_decision_matrix
+              WHERE price BETWEEN ? AND ?
+          ),
+          wp_s AS (
+              SELECT 
+                  fdm.product_id,
+                  fdm.store_id,
+                  EXP(SUM(
+                      (CASE WHEN fdm.criteria_type = 'cost' THEN -nw.norm_weight ELSE nw.norm_weight END) 
+                      * LOG(GREATEST(fdm.raw_value, 0.0001))
+                  )) AS s_value
+              FROM filtered_dm fdm
+              JOIN normalized_weights nw ON fdm.criteria_id = nw.criteria_id
+              GROUP BY fdm.product_id, fdm.store_id
+          ),
+          sum_s AS (
+              SELECT SUM(s_value) AS total_s FROM wp_s
           ),
           wp_calc AS (
-              SELECT product_id, store_id, price, EXP(SUM(LOG(POW(raw_value, weight_power)))) AS final_score
-              FROM wp_step1 GROUP BY product_id, store_id, price
+              SELECT 
+                  ws.product_id,
+                  ws.store_id,
+                  CASE WHEN ss.total_s > 0 THEN (ws.s_value / ss.total_s) ELSE 0 END AS final_score
+              FROM wp_s ws
+              CROSS JOIN sum_s ss
           ),
           best_product_scores AS (
               SELECT product_id, MAX(final_score) as best_score FROM wp_calc GROUP BY product_id
@@ -107,36 +165,73 @@ export class SpkService {
           JOIN ranked_products rp ON c.product_id = rp.product_id
           JOIN product_store ps ON c.product_id = ps.products_id_product AND c.store_id = ps.stores_id_store
           WHERE rp.product_rank <= 3
-          ORDER BY rp.product_rank ASC, c.price ASC;
+          ORDER BY rp.product_rank ASC, ps.price ASC;
         `;
 
         // SQL FOR TOPSIS
         const topsisQuery = `
           INSERT INTO recommendation_result (recommendation_requests_id_recommendation_request, product_store_id_product_store, method_used, score, ranking)
-          WITH t_step1 AS (
-              SELECT tn.product_id, tn.store_id, tn.criteria_id, tn.criteria_type, dm.price,
+          WITH request_weights AS (
+              SELECT criteria_id_criteria AS criteria_id, weight
+              FROM recommendation_weight
+              WHERE recommendation_requests_id_recommendation_request = ?
+          ),
+          filtered_dm AS (
+              SELECT product_id, store_id, criteria_id, criteria_type, raw_value, price
+              FROM v_decision_matrix
+              WHERE price BETWEEN ? AND ?
+          ),
+          t_pembagi AS (
+              SELECT 
+                  criteria_id,
+                  SQRT(SUM(POW(raw_value, 2))) AS pembagi
+              FROM filtered_dm
+              GROUP BY criteria_id
+          ),
+          t_normalized AS (
+              SELECT 
+                  fdm.product_id,
+                  fdm.store_id,
+                  fdm.criteria_id,
+                  fdm.criteria_type,
+                  CASE WHEN tp.pembagi > 0 THEN (fdm.raw_value / tp.pembagi) ELSE 0 END AS normalized_value
+              FROM filtered_dm fdm
+              JOIN t_pembagi tp ON fdm.criteria_id = tp.criteria_id
+          ),
+          t_weighted AS (
+              SELECT 
+                  tn.product_id,
+                  tn.store_id,
+                  tn.criteria_id,
+                  tn.criteria_type,
                   (tn.normalized_value * w.weight) AS weighted_value
-              FROM v_topsis_normalisasi tn
-              JOIN v_decision_matrix dm ON tn.product_id = dm.product_id AND tn.store_id = dm.store_id AND tn.criteria_id = dm.criteria_id
-              JOIN recommendation_weight w ON w.criteria_id_criteria = tn.criteria_id
-              WHERE w.recommendation_requests_id_recommendation_request = ?
-                AND dm.price BETWEEN ? AND ?
+              FROM t_normalized tn
+              JOIN request_weights w ON w.criteria_id = tn.criteria_id
           ),
           t_ideal AS (
-              SELECT criteria_id,
+              SELECT 
+                  criteria_id,
                   CASE WHEN criteria_type = 'benefit' THEN MAX(weighted_value) ELSE MIN(weighted_value) END AS ideal_pos,
                   CASE WHEN criteria_type = 'benefit' THEN MIN(weighted_value) ELSE MAX(weighted_value) END AS ideal_neg
-              FROM t_step1 GROUP BY criteria_id, criteria_type
+              FROM t_weighted
+              GROUP BY criteria_id, criteria_type
           ),
           t_dist AS (
-              SELECT s1.product_id, s1.store_id, s1.price,
-                  SQRT(SUM(POW(s1.weighted_value - idl.ideal_pos, 2))) AS d_pos,
-                  SQRT(SUM(POW(s1.weighted_value - idl.ideal_neg, 2))) AS d_neg
-              FROM t_step1 s1 JOIN t_ideal idl ON s1.criteria_id = idl.criteria_id GROUP BY s1.product_id, s1.store_id, s1.price
+              SELECT 
+                  tw.product_id,
+                  tw.store_id,
+                  SQRT(SUM(POW(tw.weighted_value - idl.ideal_pos, 2))) AS d_pos,
+                  SQRT(SUM(POW(tw.weighted_value - idl.ideal_neg, 2))) AS d_neg
+              FROM t_weighted tw
+              JOIN t_ideal idl ON tw.criteria_id = idl.criteria_id
+              GROUP BY tw.product_id, tw.store_id
           ),
           t_calc AS (
-              SELECT product_id, store_id, price, (d_neg / (d_pos + d_neg)) AS final_score
-              FROM t_dist WHERE (d_pos + d_neg) > 0
+              SELECT 
+                  product_id,
+                  store_id,
+                  CASE WHEN (d_pos + d_neg) > 0 THEN (d_neg / (d_pos + d_neg)) ELSE 0 END AS final_score
+              FROM t_dist
           ),
           best_product_scores AS (
               SELECT product_id, MAX(final_score) as best_score FROM t_calc GROUP BY product_id
@@ -149,7 +244,7 @@ export class SpkService {
           JOIN ranked_products rp ON c.product_id = rp.product_id
           JOIN product_store ps ON c.product_id = ps.products_id_product AND c.store_id = ps.stores_id_store
           WHERE rp.product_rank <= 3
-          ORDER BY rp.product_rank ASC, c.price ASC;
+          ORDER BY rp.product_rank ASC, ps.price ASC;
         `;
 
         // Execute 3 INSERT queries using tx.$executeRawUnsafe
