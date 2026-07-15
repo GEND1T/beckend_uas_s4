@@ -229,7 +229,8 @@ JOIN product_criteria pc ON ps.products_id_product = pc.products_id_product
 JOIN sub_criteria sc ON pc.sub_criteria_id_sub_criteria = sc.id_sub_criteria
 JOIN criteria c ON sc.criteria_id_criteria = c.id_criteria;
 
-CREATE OR REPLACE VIEW v_riwayat_matriks AS
+
+CREATE OR REPLACE VIEW v_matriks AS
 SELECT 
     req.id_recommendation_request,
     req.customers_id_customer,
@@ -269,3 +270,126 @@ JOIN product_criteria pc ON p.id_product = pc.products_id_product
 JOIN sub_criteria sc ON pc.sub_criteria_id_sub_criteria = sc.id_sub_criteria
 JOIN recommendation_weight rw ON req.id_recommendation_request = rw.recommendation_requests_id_recommendation_request
 GROUP BY req.id_recommendation_request, req.customers_id_customer, ps.products_id_product, p.model_name, ps.price;
+
+
+CREATE OR REPLACE VIEW v_wp AS
+WITH VektorS AS (
+    SELECT 
+        id_recommendation_request, 
+        id_produk, 
+        nama_laptop,
+        (
+            POW(nilai_c1, -bobot_c1) *  -- COST
+            POW(nilai_c2, bobot_c2) *   -- BENEFIT
+            POW(nilai_c3, bobot_c3) *   -- BENEFIT
+            POW(nilai_c4, bobot_c4) *   -- BENEFIT
+            POW(nilai_c5, -bobot_c5) *  -- COST
+            POW(nilai_c6, bobot_c6) *   -- BENEFIT
+            POW(nilai_c7, bobot_c7) *   -- BENEFIT
+            POW(nilai_c8, bobot_c8)     -- BENEFIT
+        ) AS skor_s
+    FROM v_matriks
+)
+SELECT 
+    id_recommendation_request, 
+    id_produk, 
+    nama_laptop, 
+    skor_s,
+    (skor_s / SUM(skor_s) OVER(PARTITION BY id_recommendation_request)) AS skor_akhir_wp
+FROM VektorS;
+
+
+CREATE OR REPLACE VIEW v_topsis_pembagi AS
+SELECT 
+    id_recommendation_request,
+    SQRT(SUM(POW(nilai_c1, 2))) AS bagi_c1,
+    SQRT(SUM(POW(nilai_c2, 2))) AS bagi_c2,
+    SQRT(SUM(POW(nilai_c3, 2))) AS bagi_c3,
+    SQRT(SUM(POW(nilai_c4, 2))) AS bagi_c4,
+    SQRT(SUM(POW(nilai_c5, 2))) AS bagi_c5,
+    SQRT(SUM(POW(nilai_c6, 2))) AS bagi_c6,
+    SQRT(SUM(POW(nilai_c7, 2))) AS bagi_c7,
+    SQRT(SUM(POW(nilai_c8, 2))) AS bagi_c8
+FROM v_matriks
+GROUP BY id_recommendation_request;
+
+CREATE OR REPLACE VIEW v_topsis_akhir AS
+WITH MatriksTernormalisasi AS (
+    SELECT 
+        m.id_recommendation_request, m.id_produk, m.nama_laptop,
+        (m.nilai_c1 / p.bagi_c1) * m.bobot_c1 AS y_c1,
+        (m.nilai_c2 / p.bagi_c2) * m.bobot_c2 AS y_c2,
+        (m.nilai_c3 / p.bagi_c3) * m.bobot_c3 AS y_c3,
+        (m.nilai_c4 / p.bagi_c4) * m.bobot_c4 AS y_c4,
+        (m.nilai_c5 / p.bagi_c5) * m.bobot_c5 AS y_c5,
+        (m.nilai_c6 / p.bagi_c6) * m.bobot_c6 AS y_c6,
+        (m.nilai_c7 / p.bagi_c7) * m.bobot_c7 AS y_c7,
+        (m.nilai_c8 / p.bagi_c8) * m.bobot_c8 AS y_c8
+    FROM v_matriks m
+    JOIN v_topsis_pembagi p ON m.id_recommendation_request = p.id_recommendation_request
+),
+SolusiIdeal AS (
+    SELECT 
+        id_recommendation_request,
+        -- C1 COST
+        MIN(y_c1) AS a_pos_c1, MAX(y_c1) AS a_neg_c1, 
+        -- C2 BENEFIT
+        MAX(y_c2) AS a_pos_c2, MIN(y_c2) AS a_neg_c2, 
+        -- C3 BENEFIT
+        MAX(y_c3) AS a_pos_c3, MIN(y_c3) AS a_neg_c3, 
+        -- C4 BENEFIT
+        MAX(y_c4) AS a_pos_c4, MIN(y_c4) AS a_neg_c4, 
+        -- C5 COST
+        MIN(y_c5) AS a_pos_c5, MAX(y_c5) AS a_neg_c5, 
+        -- C6 BENEFIT
+        MAX(y_c6) AS a_pos_c6, MIN(y_c6) AS a_neg_c6, 
+        -- C7 BENEFIT
+        MAX(y_c7) AS a_pos_c7, MIN(y_c7) AS a_neg_c7, 
+        -- C8 BENEFIT
+        MAX(y_c8) AS a_pos_c8, MIN(y_c8) AS a_neg_c8  
+    FROM MatriksTernormalisasi
+    GROUP BY id_recommendation_request
+),
+JarakIdeal AS (
+    SELECT 
+        t.id_recommendation_request, t.id_produk, t.nama_laptop,
+        SQRT(POW(t.y_c1 - i.a_pos_c1, 2) + POW(t.y_c2 - i.a_pos_c2, 2) + POW(t.y_c3 - i.a_pos_c3, 2) + POW(t.y_c4 - i.a_pos_c4, 2) + POW(t.y_c5 - i.a_pos_c5, 2) + POW(t.y_c6 - i.a_pos_c6, 2) + POW(t.y_c7 - i.a_pos_c7, 2) + POW(t.y_c8 - i.a_pos_c8, 2)) AS d_pos,
+        SQRT(POW(t.y_c1 - i.a_neg_c1, 2) + POW(t.y_c2 - i.a_neg_c2, 2) + POW(t.y_c3 - i.a_neg_c3, 2) + POW(t.y_c4 - i.a_neg_c4, 2) + POW(t.y_c5 - i.a_neg_c5, 2) + POW(t.y_c6 - i.a_neg_c6, 2) + POW(t.y_c7 - i.a_neg_c7, 2) + POW(t.y_c8 - i.a_neg_c8, 2)) AS d_neg
+    FROM MatriksTernormalisasi t
+    JOIN SolusiIdeal i ON t.id_recommendation_request = i.id_recommendation_request
+)
+SELECT 
+    id_recommendation_request, 
+    id_produk, 
+    nama_laptop,
+    (d_neg / (d_pos + d_neg)) AS skor_akhir_topsis
+FROM JarakIdeal;
+
+CREATE OR REPLACE VIEW v_saw AS
+SELECT 
+    id_recommendation_request, 
+    id_produk, 
+    nama_laptop,
+    
+    -- PENJABARAN NORMALISASI (UBAH MIN/MAX JIKA TIPE BERBEDA)
+    (MIN(nilai_c1) OVER(PARTITION BY id_recommendation_request) / nilai_c1) AS norm_c1, -- COST
+    (nilai_c2 / MAX(nilai_c2) OVER(PARTITION BY id_recommendation_request)) AS norm_c2, -- BENEFIT
+    (nilai_c3 / MAX(nilai_c3) OVER(PARTITION BY id_recommendation_request)) AS norm_c3, -- BENEFIT
+    (nilai_c4 / MAX(nilai_c4) OVER(PARTITION BY id_recommendation_request)) AS norm_c4, -- BENEFIT
+    (MIN(nilai_c5) OVER(PARTITION BY id_recommendation_request) / nilai_c5) AS norm_c5, -- COST
+    (nilai_c6 / MAX(nilai_c6) OVER(PARTITION BY id_recommendation_request)) AS norm_c6, -- BENEFIT
+    (nilai_c7 / MAX(nilai_c7) OVER(PARTITION BY id_recommendation_request)) AS norm_c7, -- BENEFIT
+    (nilai_c8 / MAX(nilai_c8) OVER(PARTITION BY id_recommendation_request)) AS norm_c8, -- BENEFIT
+
+    -- HASIL AKHIR VEKTOR V
+    (
+        ((MIN(nilai_c1) OVER(PARTITION BY id_recommendation_request) / nilai_c1) * bobot_c1) +
+        ((nilai_c2 / MAX(nilai_c2) OVER(PARTITION BY id_recommendation_request)) * bobot_c2) +
+        ((nilai_c3 / MAX(nilai_c3) OVER(PARTITION BY id_recommendation_request)) * bobot_c3) +
+        ((nilai_c4 / MAX(nilai_c4) OVER(PARTITION BY id_recommendation_request)) * bobot_c4) +
+        ((MIN(nilai_c5) OVER(PARTITION BY id_recommendation_request) / nilai_c5) * bobot_c5) +
+        ((nilai_c6 / MAX(nilai_c6) OVER(PARTITION BY id_recommendation_request)) * bobot_c6) +
+        ((nilai_c7 / MAX(nilai_c7) OVER(PARTITION BY id_recommendation_request)) * bobot_c7) +
+        ((nilai_c8 / MAX(nilai_c8) OVER(PARTITION BY id_recommendation_request)) * bobot_c8)
+    ) AS skor_akhir_saw
+FROM v_matriks;

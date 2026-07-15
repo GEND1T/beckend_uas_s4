@@ -172,7 +172,11 @@ export class SpkRequestService {
 
     // 3. Return complete request with calculations
     const result = await recommendationRequestRepository.findById(newRequest.id);
-    return this.attachDistanceToRequest(result);
+    const requestWithDistance = this.attachDistanceToRequest(result);
+    if (requestWithDistance) {
+      requestWithDistance.calculationDetails = await this.fetchCalculationDetails(newRequest.id);
+    }
+    return requestWithDistance;
   }
 
   async getCustomerRequests(customerId: number) {
@@ -190,8 +194,45 @@ export class SpkRequestService {
       throw new Error("Unauthorized to access this recommendation request.");
     }
 
-    return this.attachDistanceToRequest(request);
+    const requestWithDistance = this.attachDistanceToRequest(request);
+    if (requestWithDistance) {
+      requestWithDistance.calculationDetails = await this.fetchCalculationDetails(id);
+    }
+    return requestWithDistance;
+  }
+
+  private sanitizeBigInt(obj: any): any {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj === 'bigint') return Number(obj);
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.sanitizeBigInt(item));
+    }
+    if (typeof obj === 'object') {
+      const newObj: any = {};
+      for (const key of Object.keys(obj)) {
+        newObj[key] = this.sanitizeBigInt(obj[key]);
+      }
+      return newObj;
+    }
+    return obj;
+  }
+
+  private async fetchCalculationDetails(requestId: number) {
+    const rawMatrix = await prisma.$queryRaw`SELECT * FROM v_matriks WHERE id_recommendation_request = ${requestId}`;
+    const sawDetails = await prisma.$queryRaw`SELECT * FROM v_saw WHERE id_recommendation_request = ${requestId}`;
+    const wpDetails = await prisma.$queryRaw`SELECT * FROM v_wp WHERE id_recommendation_request = ${requestId}`;
+    const topsisPembagi = await prisma.$queryRaw`SELECT * FROM v_topsis_pembagi WHERE id_recommendation_request = ${requestId}`;
+    const topsisDetails = await prisma.$queryRaw`SELECT * FROM v_topsis_akhir WHERE id_recommendation_request = ${requestId}`;
+
+    return this.sanitizeBigInt({
+      rawMatrix,
+      sawDetails,
+      wpDetails,
+      topsisPembagi,
+      topsisDetails
+    });
   }
 }
 
 export const spkRequestService = new SpkRequestService();
+

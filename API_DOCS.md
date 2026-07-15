@@ -1149,6 +1149,12 @@ Endpoints for register, catalog browsing, profile editing, and SPK recommendatio
       - `methodUsed` (String): The calculation method used (`SAW`, `WP`, or `TOPSIS`).
       - `score` (Decimal): The calculated SPK score.
       - `ranking` (Integer): The ordinal ranking of the recommendation (1-10).
+    - `calculationDetails` (Object): The intermediate calculation data retrieved from MySQL Views for visual normalization in the frontend:
+      - `rawMatrix` (Array): Raw matrix data (`v_matriks`) including actual laptop criteria values and corresponding weights.
+      - `sawDetails` (Array): Normalization process and intermediate scores for SAW (`v_saw`).
+      - `wpDetails` (Array): Intermediate S-vectors and final scores for WP (`v_wp`).
+      - `topsisPembagi` (Array): TOPSIS square root divisor values for all criteria (`v_topsis_pembagi`).
+      - `topsisDetails` (Array): Calculated relative closeness/scores for TOPSIS (`v_topsis_akhir`).
   - **Example:**
   ```json
   {
@@ -1415,7 +1421,79 @@ Endpoints for register, catalog browsing, profile editing, and SPK recommendatio
             }
           }
         }
-      ]
+      ],
+      "calculationDetails": {
+        "rawMatrix": [
+          {
+            "id_recommendation_request": 101,
+            "customers_id_customer": 1,
+            "id_produk": 2,
+            "nama_laptop": "Inspiron 14 5430",
+            "nilai_c1": 4491000,
+            "bobot_c1": 0.25,
+            "nilai_c2": 3,
+            "bobot_c2": 0.2,
+            "nilai_c3": 2,
+            "bobot_c3": 0.2,
+            "nilai_c4": 2,
+            "bobot_c4": 0.1,
+            "nilai_c5": 3,
+            "bobot_c5": 0.05,
+            "nilai_c6": 3,
+            "bobot_c6": 0.1,
+            "nilai_c7": 3,
+            "bobot_c7": 0.05,
+            "nilai_c8": 4,
+            "bobot_c8": 0.05
+          }
+        ],
+        "sawDetails": [
+          {
+            "id_recommendation_request": 101,
+            "id_produk": 58,
+            "nama_laptop": "Sword 16 HX",
+            "norm_c1": 0.6023,
+            "norm_c2": 0.6,
+            "norm_c3": 0.75,
+            "norm_c4": 0.6,
+            "norm_c5": 0.5,
+            "norm_c6": 0.8,
+            "norm_c7": 0.8,
+            "norm_c8": 1,
+            "skor_akhir_saw": 0.67558611
+          }
+        ],
+        "wpDetails": [
+          {
+            "id_recommendation_request": 101,
+            "id_produk": 90,
+            "nama_laptop": "Surface Laptop Studio 2",
+            "skor_s": 0.03572652,
+            "skor_akhir_wp": 0.00075931
+          }
+        ],
+        "topsisPembagi": [
+          {
+            "id_recommendation_request": 101,
+            "bagi_c1": 211660207.01,
+            "bagi_c2": 107.48,
+            "bagi_c3": 80.38,
+            "bagi_c4": 100.71,
+            "bagi_c5": 125.66,
+            "bagi_c6": 130.48,
+            "bagi_c7": 120.82,
+            "bagi_c8": 136.76
+          }
+        ],
+        "topsisDetails": [
+          {
+            "id_recommendation_request": 101,
+            "id_produk": 2,
+            "nama_laptop": "Inspiron 14 5430",
+            "skor_akhir_topsis": 0.47736129
+          }
+        ]
+      }
     }
   }
 
